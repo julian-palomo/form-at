@@ -9,7 +9,7 @@ description: Push the current form-at feature branch and open its pull request, 
 
 ```bash
 git config --get user.name     # expect: Julián Palomo
-git config --get user.email    # expect: palomodeonis@gmail.com, no quotes
+git config --get user.email    # expect: hello@julianpalomo.dev, no quotes
 git rev-parse --abbrev-ref HEAD
 git status --porcelain --untracked-files=all
 ```
