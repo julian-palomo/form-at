@@ -44,13 +44,11 @@ export const events: Event[] = [
     city: "Glasgow",
     lineupIds: ["dzeko", "julz-lever", "hubey"],
     audio: "techno / electro / dub",
-    // Start-only until the closing time is booked: an unparseable end puts no
-    // end time on calendars or in the JSON-LD (eventDateTimes in jsonld.ts),
-    // where a guessed one would land in people's calendars.
-    runtime: "23:00 — tbc",
+    runtime: "23:00 — 04:00",
     status: "upcoming",
+    flyer: "events/004",
     description:
-      "sequence 004 lands in the city centre: our first night at stereo, on renfield lane, and our first on a saturday. headlining, dzeko makes his scottish debut. barcelona-based and vinyl-only, he closed marcel dettmann's five-hour night at razzmatazz and co-founded matriz in granada. residents julz lever and hubey complete the transmission.",
+      "sequence 004: our first saturday, our first night at stereo. dzeko flies in from barcelona for his scottish debut, vinyl only, with residents julz lever and hubey. techno, electro and dub from 23:00 to 04:00. tickets on resident advisor.",
   },
   {
     id: "format-003",
