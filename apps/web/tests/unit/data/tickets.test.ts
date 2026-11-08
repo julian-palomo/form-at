@@ -54,8 +54,12 @@ function orders() {
   }>;
 }
 
-function checkout(fetchImpl: typeof fetch, ip = "203.0.113.7") {
-  return startCheckoutFor(env, { eventId: EVENT, ip, origin: ORIGIN, now: NOW }, fetchImpl);
+function checkout(fetchImpl: typeof fetch, ip = "203.0.113.7", quantity = 1) {
+  return startCheckoutFor(
+    env,
+    { eventId: EVENT, quantity, ip, origin: ORIGIN, now: NOW },
+    fetchImpl,
+  );
 }
 
 beforeEach(() => {
@@ -137,10 +141,37 @@ describe("startCheckoutFor", () => {
     expect(
       await startCheckoutFor(
         env,
-        { eventId: "no-such-event", ip: null, origin: ORIGIN, now: NOW },
+        { eventId: "no-such-event", quantity: 1, ip: null, origin: ORIGIN, now: NOW },
         fetchImpl,
       ),
     ).toEqual({ status: "unavailable" });
+    expect(orders()).toHaveLength(0);
+  });
+
+  it("charges several tickets at the tier's unit price in one checkout", async () => {
+    const fetchImpl = stripeOk();
+    const result = await checkout(fetchImpl as unknown as typeof fetch, "203.0.113.7", 3);
+    expect(result.status).toBe("redirect");
+
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = new URLSearchParams(String(init.body));
+    expect(body.get("line_items[0][quantity]")).toBe("3");
+    expect(body.get("line_items[0][price_data][unit_amount]")).toBe("800");
+    const row = db.raw.prepare("SELECT quantity, amount_pence FROM ticket_orders").get();
+    expect({ ...row }).toEqual({ quantity: 3, amount_pence: 2400 });
+  });
+
+  it("answers fewer_left with what's on sale when the tier can't take the quantity, without calling Stripe", async () => {
+    setCap("format-004-early", 2);
+    const fetchImpl = stripeOk();
+    expect(await checkout(fetchImpl as unknown as typeof fetch, "203.0.113.7", 3)).toEqual({
+      status: "fewer_left",
+      availability: {
+        eventId: EVENT,
+        active: { name: "early", pricePence: 800, maxQuantity: 2 },
+      },
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(orders()).toHaveLength(0);
   });
 });
@@ -149,8 +180,13 @@ describe("loadAvailability", () => {
   it("shows the active tier's name and price", async () => {
     expect(await loadAvailability(env, EVENT, NOW)).toEqual({
       eventId: EVENT,
-      active: { name: expect.any(String), pricePence: 800 },
+      active: { name: expect.any(String), pricePence: 800, maxQuantity: 10 },
     });
+  });
+
+  it("caps maxQuantity at what's left in the tier", async () => {
+    setCap("format-004-early", 4);
+    expect((await loadAvailability(env, EVENT, NOW))?.active?.maxQuantity).toBe(4);
   });
 
   it("shows sold out when every tier is full", async () => {
@@ -172,6 +208,7 @@ describe("loadOrderView", () => {
       status: "pending",
       eventTitle: "Form:at 004",
       venue: "Stereo, City Centre, Glasgow",
+      quantity: 1,
       amountPence: 800,
       name: null,
     });

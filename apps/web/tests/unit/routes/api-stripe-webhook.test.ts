@@ -68,6 +68,7 @@ beforeEach(async () => {
   await reserveSeat(db, {
     tierId: TIER,
     orderId: "order-1",
+    quantity: 1,
     ipHash: "ip-1",
     now: NOW_MS,
     expiresAt: NOW_MS + 36 * 60 * 1000,
@@ -100,6 +101,26 @@ describe("handleStripeWebhook", () => {
     expect((await post(body)).status).toBe(200);
     expect((await post(body)).status).toBe(200);
     expect(ticketCount()).toBe(1);
+  });
+
+  it("creates one ticket per seat for an order of several, and none more on a replay", async () => {
+    await reserveSeat(db, {
+      tierId: TIER,
+      orderId: "order-3",
+      quantity: 3,
+      ipHash: "ip-3",
+      now: NOW_MS,
+      expiresAt: NOW_MS + 36 * 60 * 1000,
+    });
+    await attachStripeSession(db, "order-3", "cs_test_3");
+    const body = stripeEvent("checkout.session.completed", "cs_test_3");
+    expect((await post(body)).status).toBe(200);
+    expect((await post(body)).status).toBe(200);
+    const seqs = db.raw
+      .prepare("SELECT seq FROM tickets WHERE order_id = 'order-3' ORDER BY seq")
+      .all()
+      .map((r) => r.seq);
+    expect(seqs).toEqual([0, 1, 2]);
   });
 
   it("frees the seat on checkout.session.expired", async () => {

@@ -45,7 +45,9 @@ function OrderState({ order }: { order: OrderView }) {
     ["event", order.eventTitle],
     ["date", order.date],
     ["venue", order.venue],
-    ["ticket", `${order.tierName} · ${formatPence(order.amountPence)}`],
+    order.quantity > 1
+      ? ["tickets", `${order.quantity} × ${order.tierName} · ${formatPence(order.amountPence)}`]
+      : ["ticket", `${order.tierName} · ${formatPence(order.amountPence)}`],
   ];
 
   if (order.status === "paid") {
