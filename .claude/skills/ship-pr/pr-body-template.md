@@ -3,6 +3,8 @@
 Same shape as the repo's recent PRs (e.g. #91). English only. No attribution.
 
 ```markdown
+Closes #N. Part of #M.
+
 ## Before
 
 - What a user (or a developer) saw or had before this change.

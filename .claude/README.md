@@ -35,7 +35,8 @@ code.claude.com/docs.
 | `rules/tests.md` | One vitest major, standalone vitest config, test layout | Touching tests or test configs | Automatic |
 | `rules/ci.md` | Playwright cache keys, CI jobs, deploy gating | Touching .github/workflows | Automatic |
 | `rules/comments.md` | The comment register | Touching any code file | Automatic |
-| `skills/handoff/` | Checks, docs test, stage by name, commit, change summary | End of a task | `/handoff` (or Claude, when work is done) |
+| `skills/implement-issue/` | Reads the issue and its epic, branches, posts the plan on the issue and waits for your OK (`wait-for-reply.sh`), implements, hands off, ships with `Closes #N`, applies the review | Working from a GitHub issue | `/implement-issue <N>` |
+| `skills/handoff/` | Checks, docs test, branch check, stage by name, commit, change summary | End of a task | `/handoff` (or Claude, when work is done) |
 | `skills/ship-pr/` | Identity check, push, `gh pr create`, CI report, never merge | After handoff | `/ship-pr` |
 | `skills/visual-review/` | Design pass, 375px renders to `~/Downloads/<topic>/`, wait for your ok | Visual work, before ship-pr | `/visual-review` |
 | `skills/add-dj/` | djs.ts, photo pipeline, lineup, checks | Adding a DJ | `/add-dj` |
@@ -56,6 +57,7 @@ code.claude.com/docs.
 1. **Explore.** Ask Claude to look around; it reads code and the matching rules load.
 2. **Plan.** Shift+Tab until the mode says plan; Claude proposes and edits nothing until you approve.
 3. **Code.** Approve the plan; Claude implements on a new `feat/` / `fix/` / `chore/` branch.
+   From a GitHub issue, `/implement-issue <N>` does steps 1 to 6 in one go, posting the plan on the issue and waiting for your OK there or here.
 4. **`/handoff`.** Checks, docs, commit, change summary (complex parts in English and Spanish).
 5. **`/visual-review`** for anything visible: renders land in `~/Downloads/<topic>/`; you approve or ask for changes.
 6. **`/ship-pr`.** Push, PR, CI report. You review and squash-merge.

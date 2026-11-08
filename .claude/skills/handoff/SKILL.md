@@ -47,6 +47,13 @@ untouched. Never `git add -A`, `--all` or `.`.
 
 ## 4. Commit
 
+```bash
+git branch --show-current
+```
+
+If that isn't the branch this task's work belongs to, stop and say so: another
+session may be using this folder (CLAUDE.md §2, "one session, one folder").
+
 Once the checks pass:
 
 ```bash
