@@ -61,7 +61,7 @@ The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry
 |---|---|
 | **Pages** | hosts both apps as separate projects |
 | **Workers** | the SSR runtime — and, separately, a Cron Trigger Worker for the analytics archive, because Pages can't run cron |
-| **D1** (SQLite) | play analytics, the sets catalogue, ticket orders |
+| **D1** (SQLite) | play analytics, the sets catalogue, ticket orders and door sales |
 | **R2** | audio files — free egress, which matters when a single play is 100–220MB |
 | **Access** | edge auth for the admin subdomain, so there's no auth code to write |
 | **GraphQL Analytics API** | zone edge traffic + Web Analytics (RUM) visits, read live into the admin dashboard |
