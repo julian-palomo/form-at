@@ -1594,11 +1594,11 @@ otherwise; add a unit test per function for a non-string input.
 
 **Status: open, not blocking.** `verifyAccessJwt` itself is tested
 (`apps/admin/tests/unit/utils/verifyAccessJwt.test.ts`), and
-`api-sets-presign.test.ts` exercises it at the route. `api-sets.test.ts`,
-`api-sets-restore.test.ts` and `api-send-push.test.ts` contain no request without
-a valid `Cf-Access-Jwt-Assertion` and no 401/403 assertion. The four routes all
-call it today (read, not run); a refactor that drops the call from one of them
-would pass the suite.
+`api-sets-presign.test.ts` and `api-tickets-check-in.test.ts` exercise it at the
+route. `api-sets.test.ts`, `api-sets-restore.test.ts` and `api-send-push.test.ts`
+contain no request without a valid `Cf-Access-Jwt-Assertion` and no 401/403
+assertion. Those three routes call it today (read, not run); a refactor that
+drops the call from one of them would pass the suite.
 
 **Fix:** one test per route — a request with no assertion header gets the
 rejection status and the handler's D1/R2 work never runs.
