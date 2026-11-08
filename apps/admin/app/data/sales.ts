@@ -99,9 +99,11 @@ const SAMPLE_ORDERS: SalesOrder[] = [
   },
 ];
 
+// Matches SAMPLE_ORDERS: Isla's 3 paid and Morven's 2 held in second; the
+// lapsed, refunded and expired orders hold nothing.
 const SAMPLE_TIERS: SalesTier[] = [
-  { id: "format-004-early", name: "early", cap: 15, paid: 15, held: 0, left: 0 },
-  { id: "format-004-second", name: "second", cap: 15, paid: 9, held: 2, left: 4 },
+  { id: "format-004-early", name: "early", cap: 15, paid: 0, held: 0, left: 15 },
+  { id: "format-004-second", name: "second", cap: 15, paid: 3, held: 2, left: 10 },
   { id: "format-004-general", name: "general", cap: 120, paid: 0, held: 0, left: 120 },
 ];
 

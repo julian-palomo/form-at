@@ -10,8 +10,10 @@ test.describe("admin sales list", () => {
     await expect(page.getByText(/sample data/i)).toBeVisible();
 
     const totals = page.getByRole("region", { name: "totals" });
-    await expect(totals).toContainText("24");
+    // Sample data: 3 sold (Isla's order), 145 left online, £30 from the one paid order.
+    await expect(totals).toContainText("145");
     await expect(totals).toContainText("£30.00");
+    await expect(totals).toContainText("3 / 15 · 2 held · 10 left");
 
     const orders = page.getByRole("listitem").filter({ hasText: "@example.com" });
     await expect(orders).toHaveCount(5);
