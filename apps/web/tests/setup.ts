@@ -3,6 +3,11 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach } from "vitest";
 
+// Files marked `// @vitest-environment node` (server code on real SQLite via
+// `node:sqlite`, which the jsdom environment can't load) have no DOM, so the
+// browser stand-ins below install only where one exists.
+const hasDom = typeof window !== "undefined";
+
 // Reset DOM between tests so component trees don't leak across them.
 afterEach(() => {
   cleanup();
@@ -33,7 +38,7 @@ function createMemoryStorage(): Storage {
     },
   };
 }
-for (const name of ["localStorage", "sessionStorage"] as const) {
+for (const name of hasDom ? (["localStorage", "sessionStorage"] as const) : []) {
   if (typeof window[name]?.setItem !== "function") {
     Object.defineProperty(globalThis, name, {
       configurable: true,
@@ -42,7 +47,7 @@ for (const name of ["localStorage", "sessionStorage"] as const) {
   }
 }
 
-installDialogPolyfill();
+if (hasDom) installDialogPolyfill();
 
 // jsdom doesn't implement `navigator.sendBeacon`. `useAudioPlayer`'s
 // play-tracking (`sendPlay`) and the event-tracking hook (`useTrackEvent`)
@@ -51,7 +56,7 @@ installDialogPolyfill();
 // Real `sendBeacon` returns a boolean (queued successfully); the stub
 // matches that signature. `configurable: true` so individual tests can
 // still `vi.spyOn(navigator, "sendBeacon")` to assert on calls.
-if (typeof navigator.sendBeacon !== "function") {
+if (hasDom && typeof navigator.sendBeacon !== "function") {
   Object.defineProperty(navigator, "sendBeacon", {
     configurable: true,
     writable: true,
@@ -63,7 +68,7 @@ if (typeof navigator.sendBeacon !== "function") {
 // every playback URL build via `withAppContext`. Stub a non-matching result
 // so tests register as "browser tab" and URLs stay bare — which matches
 // what existing assertions expect (audio.src === bare R2 URL).
-if (typeof window.matchMedia !== "function") {
+if (hasDom && typeof window.matchMedia !== "function") {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     writable: true,
@@ -84,6 +89,7 @@ if (typeof window.matchMedia !== "function") {
 // with a Promise-returning stub plus a pause()/load() that mirror what
 // useAudioPlayer / playerSlice expect from a real audio element.
 beforeEach(() => {
+  if (!hasDom) return;
   const proto = window.HTMLMediaElement.prototype;
   Object.defineProperty(proto, "play", {
     configurable: true,

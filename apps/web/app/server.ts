@@ -73,8 +73,17 @@ export default {
     // data. Mirrors apps/admin/app/server.ts's identical flag.
     const hasCloudflareEnv = env !== undefined;
 
+    // What server functions need from the request itself: the buyer's IP for
+    // the ticket-hold limit (`cf-connecting-ip`, set by Cloudflare; absent
+    // under plain vite) and the origin to build Stripe's return URLs from,
+    // so a preview deployment returns to the preview, not to production.
+    const requestInfo = {
+      ip: request.headers.get("cf-connecting-ip"),
+      origin: new URL(request.url).origin,
+    };
+
     // biome-ignore lint/suspicious/noExplicitAny: CF env is not in BaseContext type
-    const context = { cloudflare: { env: safeEnv, hasCloudflareEnv } } as any;
+    const context = { cloudflare: { env: safeEnv, hasCloudflareEnv }, request: requestInfo } as any;
     const response = await handler(request, { context });
 
     // Attach the CSP to documents only — API/server-fn responses don't need

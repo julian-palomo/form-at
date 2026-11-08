@@ -65,8 +65,12 @@ precacheAndRoute(self.__WB_MANIFEST);
 // behind" on a new set is fine, and instant loads beat fresh-on-every-nav.
 // SSR semantics are preserved — these are still server-rendered docs, just
 // possibly from one visit ago. Cache populates per-URL on first online visit.
+//
+// `/tickets/` is left to the network: the page Stripe returns a buyer to
+// shows their order's live status, and a cached "confirming…" would never
+// turn into "you're in".
 registerRoute(
-  ({ request }) => request.mode === "navigate",
+  ({ request, url }) => request.mode === "navigate" && !url.pathname.startsWith("/tickets/"),
   new StaleWhileRevalidate({ cacheName: "pages-v1" }),
 );
 
