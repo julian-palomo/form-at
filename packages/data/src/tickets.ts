@@ -79,6 +79,24 @@ export async function getActiveTier(
   return { active: tiers.find((t) => t.paid + t.held < t.cap) ?? null, tiers };
 }
 
+/** Unpaid holds one connection may have open at once. */
+export const MAX_LIVE_HOLDS_PER_IP = 3;
+
+/** Unpaid holds this connection still has open. Only for telling the buyer why a reservation was refused. */
+export async function countLiveHoldsForIp(
+  db: D1Database,
+  ipHash: string,
+  now: number,
+): Promise<number> {
+  const row = await db
+    .prepare(
+      "SELECT COUNT(*) AS n FROM ticket_orders WHERE ip_hash = ? AND status = 'pending' AND expires_at > ?",
+    )
+    .bind(ipHash, now)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 export type ReservedSeat = {
   orderId: string;
   tierId: string;
@@ -95,23 +113,40 @@ export type ReservedSeat = {
  * after the Stripe Checkout Session's own `expires_at`, so the seat is never
  * handed on while its first buyer can still pay.
  *
- * Returns null when the tier is full or doesn't exist. One INSERT … SELECT
- * whose WHERE counts the tier's held seats, so two requests for the last
- * seat can't both succeed.
+ * `ipHash` identifies the buyer's connection without storing the IP (the
+ * caller HMACs it). Unpaid holds per hash are capped at MAX_LIVE_HOLDS_PER_IP,
+ * because each abandoned checkout keeps a seat in a tier of 15 for its whole
+ * hold. Use `countLiveHoldsForIp` to tell that refusal apart from a full tier.
+ *
+ * Returns null when the tier is full, doesn't exist, or the hash is at its
+ * cap. One INSERT … SELECT whose WHERE counts the tier's held seats and the
+ * hash's live holds, so two requests can't both take the last seat or the
+ * last allowed hold.
  */
 export async function reserveSeat(
   db: D1Database,
-  input: { tierId: string; orderId: string; now: number; expiresAt: number },
+  input: { tierId: string; orderId: string; ipHash: string; now: number; expiresAt: number },
 ): Promise<ReservedSeat | null> {
   const result = await db
     .prepare(
-      `INSERT INTO ticket_orders (id, event_id, tier_id, amount_pence, status, created_at, expires_at)
-       SELECT ?, t.event_id, t.id, t.price_pence, 'pending', ?, ?
+      `INSERT INTO ticket_orders (id, event_id, tier_id, amount_pence, status, created_at, expires_at, ip_hash)
+       SELECT ?, t.event_id, t.id, t.price_pence, 'pending', ?, ?, ?
        FROM ticket_tiers t
        WHERE t.id = ?
-         AND (SELECT COUNT(*) FROM ticket_orders WHERE tier_id = t.id AND ${SEAT_HELD}) < t.cap`,
+         AND (SELECT COUNT(*) FROM ticket_orders WHERE tier_id = t.id AND ${SEAT_HELD}) < t.cap
+         AND (SELECT COUNT(*) FROM ticket_orders
+              WHERE ip_hash = ? AND status = 'pending' AND expires_at > ?) < ${MAX_LIVE_HOLDS_PER_IP}`,
     )
-    .bind(input.orderId, input.now, input.expiresAt, input.tierId, input.now)
+    .bind(
+      input.orderId,
+      input.now,
+      input.expiresAt,
+      input.ipHash,
+      input.tierId,
+      input.now,
+      input.ipHash,
+      input.now,
+    )
     .run();
   if (result.meta.changes !== 1) return null;
 
@@ -181,6 +216,21 @@ export async function confirmOrder(
       .bind(ticketId, input.stripeSessionId),
   ]);
   return insert?.meta.changes === 1 ? ticketId : null;
+}
+
+/**
+ * Gives back the seat of an order whose Checkout Session was never created
+ * (Stripe refused or was unreachable). Only matches a pending order with no
+ * session, so it can't cancel a checkout the buyer can still pay.
+ */
+export async function releaseUnstartedOrder(db: D1Database, orderId: string): Promise<boolean> {
+  const result = await db
+    .prepare(
+      "UPDATE ticket_orders SET status = 'expired' WHERE id = ? AND status = 'pending' AND stripe_session_id IS NULL",
+    )
+    .bind(orderId)
+    .run();
+  return result.meta.changes === 1;
 }
 
 /**
@@ -294,4 +344,41 @@ export async function listPaidOrders(db: D1Database, eventId: string): Promise<P
     checkedInAt: r.checked_in_at,
     checkedInBy: r.checked_in_by,
   }));
+}
+
+export type OrderStatus = {
+  status: "pending" | "paid" | "expired" | "refunded";
+  eventId: string;
+  tierName: string;
+  amountPence: number;
+  name: string | null;
+};
+
+/** One order by its Checkout Session id, for the page Stripe returns the buyer to; null when unknown. */
+export async function getOrderBySession(
+  db: D1Database,
+  stripeSessionId: string,
+): Promise<OrderStatus | null> {
+  const row = await db
+    .prepare(
+      `SELECT o.status, o.event_id, t.name AS tier_name, o.amount_pence, o.name
+       FROM ticket_orders o JOIN ticket_tiers t ON t.id = o.tier_id
+       WHERE o.stripe_session_id = ?`,
+    )
+    .bind(stripeSessionId)
+    .first<{
+      status: OrderStatus["status"];
+      event_id: string;
+      tier_name: string;
+      amount_pence: number;
+      name: string | null;
+    }>();
+  if (!row) return null;
+  return {
+    status: row.status,
+    eventId: row.event_id,
+    tierName: row.tier_name,
+    amountPence: row.amount_pence,
+    name: row.name,
+  };
 }

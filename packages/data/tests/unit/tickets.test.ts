@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  MAX_LIVE_HOLDS_PER_IP,
   attachStripeSession,
   checkIn,
   confirmOrder,
+  countLiveHoldsForIp,
   expireOrder,
   getActiveTier,
+  getOrderBySession,
   listPaidOrders,
+  releaseUnstartedOrder,
   reserveSeat,
 } from "~/tickets";
 import { type TestD1, createTestD1 } from "../helpers/sqliteD1";
@@ -30,8 +34,10 @@ function addTier(id: string, cap: number, sortOrder: number, pricePence = 800) {
     .run(id, EVENT, id, pricePence, cap, sortOrder);
 }
 
-async function reserve(tierId: string, orderId: string, now = NOW) {
-  return reserveSeat(db, { tierId, orderId, now, expiresAt: now + HOLD });
+// Each order gets its own IP hash unless a test passes one, so the per-IP
+// hold cap only applies where a test means it to.
+async function reserve(tierId: string, orderId: string, now = NOW, ipHash = `ip-${orderId}`) {
+  return reserveSeat(db, { tierId, orderId, ipHash, now, expiresAt: now + HOLD });
 }
 
 /** Reserves, attaches a session and confirms: one paid order with a ticket. */
@@ -110,6 +116,64 @@ describe("reserveSeat", () => {
 
   it("returns null for a tier that doesn't exist", async () => {
     expect(await reserve("missing", "o1")).toBeNull();
+  });
+});
+
+describe("reserveSeat per-IP hold cap", () => {
+  it("refuses a hold once one IP hash has the maximum unpaid holds open", async () => {
+    addTier("a", 50, 1);
+    for (let i = 0; i < MAX_LIVE_HOLDS_PER_IP; i++) {
+      expect(await reserve("a", `o${i}`, NOW, "same-ip")).not.toBeNull();
+    }
+    expect(await reserve("a", "one-too-many", NOW, "same-ip")).toBeNull();
+    expect(await countLiveHoldsForIp(db, "same-ip", NOW)).toBe(MAX_LIVE_HOLDS_PER_IP);
+    expect(await reserve("a", "other-ip", NOW, "another-ip")).not.toBeNull();
+  });
+
+  it("stops counting a hold once it expires or is paid", async () => {
+    addTier("a", 50, 1);
+    for (let i = 0; i < MAX_LIVE_HOLDS_PER_IP; i++) await reserve("a", `o${i}`, NOW, "same-ip");
+    expect(await reserve("a", "later", NOW + HOLD, "same-ip")).not.toBeNull();
+
+    await attachStripeSession(db, "later", "cs_later");
+    await confirmOrder(db, {
+      stripeSessionId: "cs_later",
+      email: null,
+      name: null,
+      paidAt: NOW + HOLD,
+    });
+    expect(await countLiveHoldsForIp(db, "same-ip", NOW + HOLD)).toBe(0);
+  });
+});
+
+describe("releaseUnstartedOrder", () => {
+  it("frees the seat of an order that never got a Checkout Session", async () => {
+    addTier("a", 1, 1);
+    await reserve("a", "o1");
+    expect(await releaseUnstartedOrder(db, "o1")).toBe(true);
+    expect(await reserve("a", "o2")).not.toBeNull();
+  });
+
+  it("leaves an order with a session alone", async () => {
+    addTier("a", 1, 1);
+    await reserve("a", "o1");
+    await attachStripeSession(db, "o1", "cs_o1");
+    expect(await releaseUnstartedOrder(db, "o1")).toBe(false);
+  });
+});
+
+describe("getOrderBySession", () => {
+  it("returns the order's status and tier, or null for an unknown session", async () => {
+    addTier("a", 1, 1, 1200);
+    await buy("a", "o1");
+    expect(await getOrderBySession(db, "cs_o1")).toEqual({
+      status: "paid",
+      eventId: EVENT,
+      tierName: "a",
+      amountPence: 1200,
+      name: "Buyer o1",
+    });
+    expect(await getOrderBySession(db, "cs_none")).toBeNull();
   });
 });
 

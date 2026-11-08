@@ -16,7 +16,8 @@
     "./r2Keys": "./src/r2Keys.ts",
     "./finePeaks": "./src/finePeaks.ts",
     "./tickets": "./src/tickets.ts",
-    "./ticketToken": "./src/ticketToken.ts"
+    "./ticketToken": "./src/ticketToken.ts",
+    "./stripe": "./src/stripe.ts"
   },
   "scripts": {
     "lint": "biome check src",

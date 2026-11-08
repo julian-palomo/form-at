@@ -48,7 +48,7 @@ export const events: Event[] = [
     status: "upcoming",
     flyer: "events/004",
     description:
-      "sequence 004: our first saturday, our first night at stereo, on renfield lane. dzeko flies in from barcelona for his scottish debut, vinyl only. he closed marcel dettmann's five-hour night at razzmatazz and co-founded matriz in granada. residents julz lever and hubey complete the transmission. techno, electro and dub from 23:00 to 04:00. tickets on resident advisor.",
+      "sequence 004: our first saturday, our first night at stereo, on renfield lane. dzeko flies in from barcelona for his scottish debut, vinyl only. he closed marcel dettmann's five-hour night at razzmatazz and co-founded matriz in granada. residents julz lever and hubey complete the transmission. techno, electro and dub from 23:00 to 04:00.",
   },
   {
     id: "format-003",

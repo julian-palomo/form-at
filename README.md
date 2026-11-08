@@ -33,7 +33,7 @@ It ships **raw `.tsx`/`.css` with no build step**, consumed straight through the
 
 **`apps/rum-archiver` is a Worker, not a Pages project**, and that's forced rather than chosen: Cloudflare Pages Functions cannot run cron — they expose only HTTP handlers — so a scheduled job cannot live inside either app. It captures Cloudflare's analytics into D1 daily before they degrade (see [below](#cloudflare-deletes-the-detail-in-its-own-analytics-after-a-week)). It has its own [README](apps/rum-archiver/README.md).
 
-**`packages/data`** holds what both apps genuinely share: the sets catalogue and its types (`sets.ts`), the DJ and event rosters (`djs.ts`, `events.ts` — plain hand-maintained arrays, not D1-backed; see [`TECH_DEBT.md`](TECH_DEBT.md) item 24), the per-set analytics query (`set-stats.ts`), Web Push sending (`webPush.ts`), and the ticket-sales queries and signed ticket token (`tickets.ts`, `ticketToken.ts`; see [`docs/adr/`](docs/adr/)). A set's `djId`/`eventId` are foreign keys into the DJ/event arrays' ids, picked from a dropdown in the admin upload/edit forms rather than inferred from free text. Queries used by only one app deliberately stay in that app — the admin dashboard's aggregate queries live in `apps/admin/app/data/admin-stats.ts` and have never had a second consumer, so they were never promoted.
+**`packages/data`** holds what both apps genuinely share: the sets catalogue and its types (`sets.ts`), the DJ and event rosters (`djs.ts`, `events.ts` — plain hand-maintained arrays, not D1-backed; see [`TECH_DEBT.md`](TECH_DEBT.md) item 24), the per-set analytics query (`set-stats.ts`), Web Push sending (`webPush.ts`), and the ticket-sales queries, signed ticket token and Stripe calls (`tickets.ts`, `ticketToken.ts`, `stripe.ts`; see [`docs/adr/`](docs/adr/)). A set's `djId`/`eventId` are foreign keys into the DJ/event arrays' ids, picked from a dropdown in the admin upload/edit forms rather than inferred from free text. Queries used by only one app deliberately stay in that app — the admin dashboard's aggregate queries live in `apps/admin/app/data/admin-stats.ts` and have never had a second consumer, so they were never promoted.
 
 **What the dashboard shows:** first-party product metrics from D1 — installs, plays, offline saves, push subscribers, per-set breakdowns — plus two live reads of Cloudflare's own analytics through the GraphQL Analytics API (`apps/admin/app/data/cf-analytics.ts`), shown side by side because the gap between them is the point.
 
@@ -53,7 +53,7 @@ These cards exist at all for a plain reason: two of the three collective members
 
 Three of its features are load-bearing here rather than incidental: file-based routing (`apps/web/app/routes/`), route loaders that run at SSR time so `/sets` arrives with its play counts already rendered, and `createServerFn` for typed server calls with no hand-written API layer. Routes that *are* pure endpoints use `createFileRoute` with a `server: { handlers }` option and no component.
 
-The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry that exists solely to handle Cloudflare's `fetch(request, env, ctx)` calling convention and forward `env.DB` through as `context.cloudflare.env`. **Without that file, D1 is unreachable from every piece of server-side code** — the framework's own entry doesn't know about Cloudflare bindings. `apps/admin/app/server.ts` is the same pattern.
+The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry that exists solely to handle Cloudflare's `fetch(request, env, ctx)` calling convention and forward `env.DB` through as `context.cloudflare.env` (plus the request's IP and origin, which ticket checkout needs). **Without that file, D1 is unreachable from every piece of server-side code** — the framework's own entry doesn't know about Cloudflare bindings. `apps/admin/app/server.ts` is the same pattern.
 
 **The whole Cloudflare stack, chosen together.** The coherence is the point — one platform, one deploy story, one `wrangler.toml`:
 
@@ -61,7 +61,7 @@ The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry
 |---|---|
 | **Pages** | hosts both apps as separate projects |
 | **Workers** | the SSR runtime — and, separately, a Cron Trigger Worker for the analytics archive, because Pages can't run cron |
-| **D1** (SQLite) | play analytics + the sets catalogue |
+| **D1** (SQLite) | play analytics, the sets catalogue, ticket orders |
 | **R2** | audio files — free egress, which matters when a single play is 100–220MB |
 | **Access** | edge auth for the admin subdomain, so there's no auth code to write |
 | **GraphQL Analytics API** | zone edge traffic + Web Analytics (RUM) visits, read live into the admin dashboard |
@@ -240,6 +240,10 @@ Known limitations: installed app only, and online only (a saved set's excerpt is
 
 Device results and what's still open: [`TECH_DEBT.md`](TECH_DEBT.md) item 30. Deliberately deferred follow-ups: [`IMPROVEMENTS.md`](IMPROVEMENTS.md) #13. The approved layout: `apps/web/app/utils/storyVideo/layout.ts` (the spike's header, `spikes/instagram-story/index.html`, records the first version).
 
+### Selling 150 tickets without a sold counter
+
+Form:at 004 sells its own tickets: three tiers in order, 150 online, through Stripe Checkout. No tier stores how many it has sold. A seat is taken by an order that is paid, or unpaid with its hold still running, and reserving one is a single `INSERT … SELECT` whose `WHERE` counts those orders against the cap, so two buyers can't both get the last seat and a lost webhook can't leak one. Only the signature-verified Stripe webhook marks an order paid, and it can arrive twice without creating a second ticket. Each unpaid checkout holds a seat for about 36 minutes, which in a tier of 15 is a real cost, so one connection can hold at most three at once, checked in the same `WHERE`. The page Stripe returns the buyer to, and every ticket server function, stay out of the service worker's caches. The decision record is in [`docs/adr/`](docs/adr/).
+
 ---
 
 ## Running it locally
@@ -256,7 +260,7 @@ pnpm dev          # web on :5173, admin on :5174
 | `pnpm dev` / `pnpm dev:web` / `pnpm dev:admin` | dev servers, all or one |
 | `pnpm build` / `pnpm build:web` / `pnpm build:admin` | production build |
 | `pnpm start` / `pnpm start:web` / `pnpm start:admin` | serve the production build — web `:4173`, admin `:4174` |
-| `pnpm test` | unit tests, all workspaces (~745 across web, admin, ui, data, rum-archiver) |
+| `pnpm test` | unit tests, all workspaces (~1,220 across web, admin, ui, data, rum-archiver) |
 | `pnpm test:e2e` | Playwright (~100 runs: 68 web across 4 projects, 34 admin across 2); first run needs `pnpm exec playwright install` |
 | `pnpm check` | Biome lint + format, then `turbo tsc` |
 | `pnpm knip` | unused code and dependency scan |
@@ -272,7 +276,7 @@ pnpm build:web && pnpm start:web    # :4173, real service worker
 
 **What does need credentials:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for `pnpm build` at the repo root (it regenerates the catalogue snapshot from live D1) and for any `wrangler` deploy. Push-sending scripts need a VAPID key pair — copy `apps/web/.env.example` to `.env`. Peaks generation needs `ffmpeg` on `PATH`.
 
-The dashboard's `edge_traffic` card needs a `CF_ANALYTICS_TOKEN` Pages secret on `form-at-admin` — not locally, where it falls back to sample data. The archiver Worker needs its own `CF_ANALYTICS_TOKEN` (a *separate*, narrower token — see its [README](apps/rum-archiver/README.md)) plus `ARCHIVE_TRIGGER_SECRET` for the manual-run route.
+The dashboard's `edge_traffic` card needs a `CF_ANALYTICS_TOKEN` Pages secret on `form-at-admin` — not locally, where it falls back to sample data. The archiver Worker needs its own `CF_ANALYTICS_TOKEN` (a *separate*, narrower token — see its [README](apps/rum-archiver/README.md)) plus `ARCHIVE_TRIGGER_SECRET` for the manual-run route. Ticket sales need three Pages secrets on `form-at-web` (see [`apps/web/README.md`](apps/web/README.md) § Ticket sales).
 
 ### CI/CD
 

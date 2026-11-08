@@ -8,6 +8,7 @@ import { Image } from "~/components/Image";
 import { JsonLd } from "~/components/JsonLd";
 import { PageLayout } from "~/components/PageLayout";
 import { ShareButton } from "~/components/ShareButton";
+import { TicketBlock } from "~/components/TicketBlock";
 import { pageHead } from "~/utils/head";
 import { eventLd } from "~/utils/jsonld";
 import { eventShareTarget } from "~/utils/shareTarget";
@@ -78,6 +79,9 @@ function EventDetail() {
             {event.description}
           </p>
         )}
+
+        {/* Hidden unless sales are on for this event; see TicketBlock. */}
+        {event.status === "upcoming" && <TicketBlock eventId={event.id} />}
 
         {lineup.length > 0 ? (
           <div className="mb-10">

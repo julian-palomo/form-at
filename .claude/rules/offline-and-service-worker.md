@@ -7,6 +7,8 @@ paths:
   - "apps/web/app/components/OfflineReconciler.tsx"
   - "apps/web/app/components/CatalogueSync.tsx"
   - "apps/web/vite.config.ts"
+  - "apps/web/app/data/tickets.ts"
+  - "apps/web/app/routes/tickets/**"
 ---
 
 # Offline audio and the service worker
@@ -53,6 +55,14 @@ request-no-cors guard discards anything not no-CORS-safelisted — so seeks retu
 200 full-body instead of 206 and re-download 100MB+ from byte 0. Node's undici
 doesn't implement that guard, so **no unit test can catch this**; it only appears
 in a real browser.
+
+## Ticket pages and ticket data never come from a cache
+
+`sw.ts`'s navigation route skips `/tickets/`, and every ticket server function in
+`apps/web/app/data/tickets.ts` is POST (the `_serverFn` cache only takes GETs).
+A cached "confirming…" on the page Stripe returns a buyer to would never turn
+into "you're in", and a cached price or "sold out" would be wrong. Keep new
+ticket pages under `/tickets/` and new ticket server functions POST.
 
 ## Service worker build
 
