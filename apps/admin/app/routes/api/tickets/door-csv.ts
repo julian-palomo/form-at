@@ -1,3 +1,4 @@
+import { signTicketToken } from "@form-at/data/ticketToken";
 import type { PaidOrder } from "@form-at/data/tickets";
 import { createFileRoute } from "@tanstack/react-router";
 import { DOOR_EVENT_ID, readDoorOrders } from "~/data/door";
@@ -8,7 +9,27 @@ import type { AccessEnv } from "~/utils/accessIdentity";
 // an extension to the static assets, which would answer 404.
 
 // One row per ticket; `ticket` is "2 of 3" for an order of several.
-const HEADER = "name,email,tier,ticket,status,checked_in_at";
+// `barcode` is the signed token the ticket's QR holds, so RA Scan can import
+// the list as a fallback scanner.
+const HEADER = "name,email,tier,ticket,barcode,status,checked_in_at";
+
+type DoorCsvEnv = AccessEnv & { DB?: D1Database; TICKET_SIGNING_SECRET?: string };
+
+/**
+ * Each row's signed token, or "" for all of them when the secret is missing or
+ * too short: the list still downloads, just without the scanner fallback.
+ * Tokens are a random UUID, a dot and base64url, so they never need quoting.
+ */
+async function barcodesFor(orders: PaidOrder[], secret: string | undefined): Promise<string[]> {
+  if (!secret) return orders.map(() => "");
+  try {
+    return await Promise.all(
+      orders.map((o) => (o.ticketId ? signTicketToken(o.ticketId, secret) : "")),
+    );
+  } catch {
+    return orders.map(() => "");
+  }
+}
 
 // A cell a spreadsheet would read as a formula gets a leading quote: names
 // and emails are typed by buyers. Then RFC 4180 quoting for commas, quotes
@@ -19,13 +40,18 @@ function csvCell(value: string | null): string {
   return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
-export function buildDoorCsv(orders: PaidOrder[]): string {
-  const rows = orders.map((o) =>
+export async function buildDoorCsv(
+  orders: PaidOrder[],
+  secret: string | undefined,
+): Promise<string> {
+  const barcodes = await barcodesFor(orders, secret);
+  const rows = orders.map((o, i) =>
     [
       csvCell(o.name),
       csvCell(o.email),
       csvCell(o.tierName),
       o.seq == null ? "" : `${o.seq + 1} of ${o.quantity}`,
+      barcodes[i] ?? "",
       o.checkedInAt == null ? "not_checked_in" : "checked_in",
       o.checkedInAt == null ? "" : new Date(o.checkedInAt).toISOString(),
     ].join(","),
@@ -35,11 +61,11 @@ export function buildDoorCsv(orders: PaidOrder[]): string {
 
 export async function handleDoorCsv(
   request: Request,
-  env: (AccessEnv & { DB?: D1Database }) | undefined,
+  env: DoorCsvEnv | undefined,
 ): Promise<Response> {
   const read = await readDoorOrders(request, env);
   if (!read.ok) return new Response(null, { status: read.reason === "unauthorized" ? 401 : 503 });
-  return new Response(buildDoorCsv(read.orders), {
+  return new Response(await buildDoorCsv(read.orders, env?.TICKET_SIGNING_SECRET), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${DOOR_EVENT_ID}-door.csv"`,
@@ -54,7 +80,7 @@ export const Route = createFileRoute("/api/tickets/door-csv")({
     handlers: {
       GET: async ({ request, context }) => {
         const cf = (context as unknown as Record<string, unknown>).cloudflare as
-          | { env: AccessEnv & { DB?: D1Database } }
+          | { env: DoorCsvEnv }
           | undefined;
         return handleDoorCsv(request, cf?.env);
       },

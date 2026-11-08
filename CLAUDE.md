@@ -61,8 +61,8 @@ least once; the rest guard something that would.
 - **Never remove `@source` from `apps/web/app/styles/global.css`**, or Tailwind
   strips every `packages/ui` class → `design-system-and-styling.md`.
 - **Never flatten a `lazy(() => import(...))` into a static import** (`TrendChart`,
-  `StoryVideoFlow`, `StoryInstallGate`, `DjStorySheet`, `TicketQr`, `Celebration`) → `stories.md`,
-  `admin-security-and-metrics.md`, `data-r2-d1.md`.
+  `StoryVideoFlow`, `StoryInstallGate`, `DjStorySheet`, `DoorScanner`, `TicketQr`, `Celebration`)
+  → `stories.md`, `admin-security-and-metrics.md`, `data-r2-d1.md`.
 - **Keep every workspace on one `vitest` major** (`^4.1.5`) → `tests.md`.
 - **Keep pairs in step:** `WIDTHS` in `optimize-images.ts` ↔ `Image.tsx`;
   `tokens.css` ↔ `tokens.ts` → `design-system-and-styling.md`.

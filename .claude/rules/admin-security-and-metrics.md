@@ -29,7 +29,8 @@ each writer verifies the Access identity server-side via
 `apps/admin/app/utils/verifyAccessJwt.ts`. All seven current ones do —
 `routes/api/sets.ts` (upload), `routes/api/sets-presign.ts` (R2 presigned URLs),
 `routes/api/sets/restore.ts`, `routes/api/send-push.ts`,
-`routes/api/tickets/check-in.ts`, `routes/api/tickets/door-sales.ts` (door `+1`
+`routes/api/tickets/check-in.ts` (which, for a scanned token, then checks the
+signature with `verifyTicketToken` before touching D1), `routes/api/tickets/door-sales.ts` (door `+1`
 and `−1`), `routes/api/tickets/door-price.ts`. Add nothing that skips it; only the read-only
 aggregate queries may. Reads of buyer data aren't aggregates: the `/door` loader
 (`data/door.ts`), `routes/api/tickets/door-csv.ts` and the `/tickets` loader
@@ -92,6 +93,10 @@ the code — `data/cf-analytics.ts`'s header for this one.
 still renders correctly while pulling all of `visx` into admin's `_worker.js`.
 `ClientOnly` is a render guard, not a code-splitting mechanism. Silent bundle
 regression, no test failure.
+
+The same goes for `DoorScanner`, which `DoorList` loads with
+`lazy(() => import("./DoorScanner"))`: a static import would ship the jsQR
+decoder with every load of `/door`, not only when `scan` is pressed.
 
 ## Map
 

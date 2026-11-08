@@ -278,7 +278,7 @@ pnpm build:web && pnpm start:web    # :4173, real service worker
 
 **What does need credentials:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for `pnpm build` at the repo root (it regenerates the catalogue snapshot from live D1) and for any `wrangler` deploy. Push-sending scripts need a VAPID key pair — copy `apps/web/.env.example` to `.env`. Peaks generation needs `ffmpeg` on `PATH`.
 
-The dashboard's `edge_traffic` card needs a `CF_ANALYTICS_TOKEN` Pages secret on `form-at-admin` — not locally, where it falls back to sample data. The archiver Worker needs its own `CF_ANALYTICS_TOKEN` (a *separate*, narrower token — see its [README](apps/rum-archiver/README.md)) plus `ARCHIVE_TRIGGER_SECRET` for the manual-run route. Ticket sales need three Pages secrets on `form-at-web`, plus `RESEND_API_KEY` for the ticket emails (see [`apps/web/README.md`](apps/web/README.md) § Ticket sales).
+The dashboard's `edge_traffic` card needs a `CF_ANALYTICS_TOKEN` Pages secret on `form-at-admin` — not locally, where it falls back to sample data. The archiver Worker needs its own `CF_ANALYTICS_TOKEN` (a *separate*, narrower token — see its [README](apps/rum-archiver/README.md)) plus `ARCHIVE_TRIGGER_SECRET` for the manual-run route. Ticket sales need three Pages secrets on `form-at-web`, plus `RESEND_API_KEY` for the ticket emails (see [`apps/web/README.md`](apps/web/README.md) § Ticket sales), and the door's QR scanner needs `TICKET_SIGNING_SECRET` on `form-at-admin` too, with the same value (see [`apps/admin/README.md`](apps/admin/README.md) § Ticket signing secret).
 
 ### CI/CD
 

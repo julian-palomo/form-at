@@ -7,7 +7,7 @@ Each item is written to be picked up cold — no conversation context required.
 ## Status at a glance
 
 - **Launch blockers:** none open (19 resolved 2026-07-06 — audio on cdn.formatglasgow.com)
-- **Open:** 8, 12, 13, 15, 22, 23 (verification debt — a cleared 2026-08-18 except the dropped-connection case, b and c still fully unexercised), 27 (offline click-through has no e2e coverage; needs a production-build Playwright project), 30 (Instagram Story device test — Android fully verified: the full 15s story shares directly, publishes whole, A/V sync and framing intact after Instagram's re-encode; iOS waits on the same device access as 12/23b), 31 (a re-upload at the same R2 URL never reaches a saved offline copy; fixed with versioned upload paths, CDN rules applied, Julz 003 moved; only the manual Android re-upload test remains), 32 (Firefox on Android treated as non-installable until a device shows its home-screen shortcut runs standalone), 33 (home must not scroll on an iPhone when it fits — checked in Chromium emulation only; waits on the same iPhone access as 12/23b/30), 34 (the two `.inputValidator()`s are identity casts), 35 (three mutating admin routes have no auth-rejection test), 36 (admin's CSP has no test), 37 (four silent-failure invariants guarded only by an agent hook, not CI)
+- **Open:** 8, 12, 13, 15, 22, 23 (verification debt — a cleared 2026-08-18 except the dropped-connection case, b and c still fully unexercised), 27 (offline click-through has no e2e coverage; needs a production-build Playwright project), 30 (Instagram Story device test — Android fully verified: the full 15s story shares directly, publishes whole, A/V sync and framing intact after Instagram's re-encode; iOS waits on the same device access as 12/23b), 31 (a re-upload at the same R2 URL never reaches a saved offline copy; fixed with versioned upload paths, CDN rules applied, Julz 003 moved; only the manual Android re-upload test remains), 32 (Firefox on Android treated as non-installable until a device shows its home-screen shortcut runs standalone), 33 (home must not scroll on an iPhone when it fits — checked in Chromium emulation only; waits on the same iPhone access as 12/23b/30), 34 (the two `.inputValidator()`s are identity casts), 35 (three mutating admin routes have no auth-rejection test), 36 (admin's CSP has no test), 37 (four silent-failure invariants guarded only by an agent hook, not CI), 39 (the door's QR scanner has only run in jsdom: Pixel test after deploy, iPhone Safari waits on the same access as 12/23b/30/33)
 - **Deferred, recorded rather than done:** 24 (DJ/event data model still static while sets are in D1), 25 (no-cross-app-imports unenforced), 26 (`PWA_PROGRESS.md` too large to be readable), 38 (ticket sales: refunds by hand in Stripe + D1)
 - **Invalid:** 1 (2026-07-22 — premise was wrong, not stale: both flagged functions are load-bearing behind a live multi-provider calendar picker; do not delete, see item for the full re-verification)
 - **Deferred:** 14 (Brandon Lee Vear `.mp3.mp3` — R2 has no rename op, cosmetic, no re-visit condition); 16 (orphan artwork prune, coupled — waits for the deferred manage-offline-sets view, real trigger is ~10-15 sets in the catalogue, not a calendar date; see item for why that arrives faster now)
@@ -1658,11 +1658,27 @@ while trying the page before the night are real rows: clear them with
 The sales list (`apps/admin/app/routes/tickets.tsx`) has no CSV download. Its
 rows need the same cell escaping as the door CSV
 (`routes/api/tickets/door-csv.ts`'s `csvCell`: formula defusing, RFC 4180
-quoting), and there must be one implementation of it, not two. Moving `csvCell`
-into a shared `utils/csv.ts` waits until the door CSV's `barcode` column has
-landed, since both changes touch that file.
+quoting), and there must be one implementation of it, not two: the first
+change that needs it elsewhere moves `csvCell` into a shared `utils/csv.ts`.
 
 **Re-visit when** refunds become more than a handful per event.
+
+## 39. [VERIFICATION DEBT] The door's QR scanner has only run in jsdom
+
+**Status: open, before Sat 5 Dec.** `components/DoorScanner.tsx` and
+`utils/useQrCamera.ts` in `apps/admin` are covered by unit tests with the
+camera stubbed, and a test draws real tokens with `uqr` and decodes them with
+jsQR. Nothing has used a real camera yet.
+
+- **Pixel (Android Chrome):** against `admin.formatglasgow.com` once deployed, a
+  test-mode ticket's QR should read IN once, then ALREADY USED. The same run
+  shows whether anything at Cloudflare's edge sends a `Permissions-Policy` that
+  blocks the camera (the app sets none) and whether the CSP lets the
+  `srcObject` stream play.
+- **iPhone Safari:** not tested; waits on the same iPhone access as items 12,
+  23b, 30 and 33.
+- **Lazy import:** `DoorScanner`'s `lazy(() => import(...))` in `DoorList.tsx`
+  isn't among the imports item 37's hook checks.
 
 ---
 

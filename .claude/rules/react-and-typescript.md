@@ -28,7 +28,8 @@ React 19.2 with the React Compiler (`babel-plugin-react-compiler` in both apps'
 - **Non-reactive logic inside an effect** (reading the latest callback or prop
   without re-subscribing) uses `useEffectEvent`, not a ref mirrored by another
   effect. It needs React ≥19.2: raise the `react` floor in package.json before
-  its first use (the floor is `^19.1.0`).
+  its first use (`apps/admin` is on `^19.2.0` and uses it; `apps/web` is still
+  on `^19.1.0`).
 - **`ref` is a plain prop**; don't add `forwardRef`.
 
 ## Zustand 5

@@ -1,3 +1,4 @@
+import { signTicketToken } from "@form-at/data/ticketToken";
 // @vitest-environment node
 import { attachStripeSession, confirmOrder, reserveSeat } from "@form-at/data/tickets";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,22 +23,28 @@ const DOOR_EMAIL = "door@example.com";
 let db: TestD1;
 let env: { DB: D1Database; CF_ACCESS_TEAM_DOMAIN: string; CF_ACCESS_AUD: string };
 
-/** One paid Form:at 004 order with its ticket, through the real queries. */
-async function paidTicket(orderId: string): Promise<string> {
+/** One paid Form:at 004 order of `quantity` tickets, through the real queries. */
+async function paidTickets(orderId: string, quantity: number): Promise<string[]> {
   await reserveSeat(db, {
     tierId: "format-004-early",
     orderId,
-    quantity: 1,
+    quantity,
     now: NOW - 60_000,
     expiresAt: NOW + 60_000,
   });
   await attachStripeSession(db, orderId, `cs_${orderId}`);
-  const [ticketId] = await confirmOrder(db, {
+  const ticketIds = await confirmOrder(db, {
     stripeSessionId: `cs_${orderId}`,
     email: `${orderId}@example.com`,
     name: `Buyer ${orderId}`,
     paidAt: NOW - 30_000,
   });
+  if (ticketIds.length !== quantity) throw new Error("confirmOrder created the wrong number");
+  return ticketIds;
+}
+
+async function paidTicket(orderId: string): Promise<string> {
+  const [ticketId] = await paidTickets(orderId, 1);
   if (!ticketId) throw new Error("confirmOrder created no ticket");
   return ticketId;
 }
@@ -107,7 +114,13 @@ describe("POST /api/tickets/check-in", () => {
     const response = await handleCheckIn(checkInRequest({ ticketId }), env, NOW);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: "checked_in", checkedInAt: NOW });
+    expect(await response.json()).toEqual({
+      status: "checked_in",
+      checkedInAt: NOW,
+      name: "Buyer o1",
+      seq: 0,
+      quantity: 1,
+    });
     expect(checkedInRow(ticketId)).toEqual({ checked_in_at: NOW, checked_in_by: DOOR_EMAIL });
   });
 
@@ -123,6 +136,9 @@ describe("POST /api/tickets/check-in", () => {
       status: "already_used",
       checkedInAt: NOW,
       checkedInBy: DOOR_EMAIL,
+      name: "Buyer o1",
+      seq: 0,
+      quantity: 1,
     });
     expect(checkedInRow(ticketId)).toEqual({ checked_in_at: NOW, checked_in_by: DOOR_EMAIL });
   });
@@ -132,11 +148,80 @@ describe("POST /api/tickets/check-in", () => {
     expect(response.status).toBe(404);
   });
 
-  it.each([{}, { ticketId: "" }, { ticketId: 42 }, { ticketId: "x".repeat(101) }, null])(
-    "returns 400 for a malformed body: %j",
-    async (body) => {
-      const response = await handleCheckIn(checkInRequest(body), env, NOW);
-      expect(response.status).toBe(400);
+  it.each([
+    {},
+    { ticketId: "" },
+    { ticketId: 42 },
+    { ticketId: "x".repeat(101) },
+    { token: "" },
+    { token: "x".repeat(145) },
+    { ticketId: "a", token: "b" },
+    null,
+  ])("returns 400 for a malformed body: %j", async (body) => {
+    const response = await handleCheckIn(checkInRequest(body), env, NOW);
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("POST /api/tickets/check-in with a scanned token", () => {
+  const SECRET = "test-ticket-signing-secret-0123456789";
+  let tokenEnv: typeof env & { TICKET_SIGNING_SECRET: string };
+
+  beforeEach(() => {
+    tokenEnv = { ...env, TICKET_SIGNING_SECRET: SECRET };
+  });
+
+  it("checks a valid token in once, then answers already_used with the holder", async () => {
+    const [, second] = await paidTickets("o1", 3);
+    const token = await signTicketToken(second as string, SECRET);
+
+    const first = await handleCheckIn(checkInRequest({ token }), tokenEnv, NOW);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({
+      status: "checked_in",
+      checkedInAt: NOW,
+      name: "Buyer o1",
+      seq: 1,
+      quantity: 3,
+    });
+
+    const again = await handleCheckIn(checkInRequest({ token }), tokenEnv, NOW + 60_000);
+    expect(again.status).toBe(409);
+    expect(await again.json()).toMatchObject({ status: "already_used", checkedInAt: NOW });
+  });
+
+  it("returns 404 without touching D1 when the signature is wrong", async () => {
+    const ticketId = await paidTicket("o1");
+    const forged = await signTicketToken(ticketId, "another-secret-of-the-right-length-000");
+    const prepare = vi.spyOn(db, "prepare");
+
+    const response = await handleCheckIn(checkInRequest({ token: forged }), tokenEnv, NOW);
+
+    expect(response.status).toBe(404);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(checkedInRow(ticketId).checked_in_at).toBeNull();
+  });
+
+  it("returns 404 for a well-signed token whose ticket doesn't exist", async () => {
+    const token = await signTicketToken("no-such-ticket", SECRET);
+    const response = await handleCheckIn(checkInRequest({ token }), tokenEnv, NOW);
+    expect(response.status).toBe(404);
+  });
+
+  it.each([undefined, "too-short"])(
+    "returns 503 and writes nothing when the signing secret is %j",
+    async (secret) => {
+      const ticketId = await paidTicket("o1");
+      const token = await signTicketToken(ticketId, SECRET);
+
+      const response = await handleCheckIn(
+        checkInRequest({ token }),
+        { ...env, TICKET_SIGNING_SECRET: secret },
+        NOW,
+      );
+
+      expect(response.status).toBe(503);
+      expect(checkedInRow(ticketId).checked_in_at).toBeNull();
     },
   );
 });
