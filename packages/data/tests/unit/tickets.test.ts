@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   MAX_LIVE_HOLDS_PER_IP,
+  MAX_TICKETS_PER_ORDER,
   attachStripeSession,
   checkIn,
   confirmOrder,
@@ -36,21 +37,34 @@ function addTier(id: string, cap: number, sortOrder: number, pricePence = 800) {
 
 // Each order gets its own IP hash unless a test passes one, so the per-IP
 // hold cap only applies where a test means it to.
-async function reserve(tierId: string, orderId: string, now = NOW, ipHash = `ip-${orderId}`) {
-  return reserveSeat(db, { tierId, orderId, ipHash, now, expiresAt: now + HOLD });
+async function reserve(
+  tierId: string,
+  orderId: string,
+  now = NOW,
+  ipHash = `ip-${orderId}`,
+  quantity = 1,
+) {
+  return reserveSeat(db, { tierId, orderId, quantity, ipHash, now, expiresAt: now + HOLD });
 }
 
-/** Reserves, attaches a session and confirms: one paid order with a ticket. */
-async function buy(tierId: string, orderId: string) {
-  await reserve(tierId, orderId);
+/** Reserves, attaches a session and confirms: one paid order and its tickets' ids, in seat order. */
+async function buyMany(tierId: string, orderId: string, quantity: number) {
+  await reserve(tierId, orderId, NOW, `ip-${orderId}`, quantity);
   await attachStripeSession(db, orderId, `cs_${orderId}`);
-  const ticketId = await confirmOrder(db, {
+  const ticketIds = await confirmOrder(db, {
     stripeSessionId: `cs_${orderId}`,
     email: `${orderId}@example.com`,
     name: `Buyer ${orderId}`,
     paidAt: NOW + 1000,
   });
-  if (!ticketId) throw new Error("confirmOrder returned null");
+  if (ticketIds.length !== quantity) throw new Error("confirmOrder created the wrong number");
+  return ticketIds;
+}
+
+/** One paid order of one ticket; returns the ticket's id. */
+async function buy(tierId: string, orderId: string) {
+  const [ticketId] = await buyMany(tierId, orderId, 1);
+  if (!ticketId) throw new Error("confirmOrder created no ticket");
   return ticketId;
 }
 
@@ -77,7 +91,14 @@ describe("reserveSeat", () => {
   it("creates a pending order at the tier's price", async () => {
     addTier("a", 2, 1, 1000);
     const seat = await reserve("a", "o1");
-    expect(seat).toEqual({ orderId: "o1", tierId: "a", eventId: EVENT, amountPence: 1000 });
+    expect(seat).toEqual({
+      orderId: "o1",
+      tierId: "a",
+      eventId: EVENT,
+      quantity: 1,
+      unitPence: 1000,
+      amountPence: 1000,
+    });
     const row = db.raw
       .prepare("SELECT status, amount_pence, expires_at FROM ticket_orders WHERE id = 'o1'")
       .get();
@@ -116,6 +137,49 @@ describe("reserveSeat", () => {
 
   it("returns null for a tier that doesn't exist", async () => {
     expect(await reserve("missing", "o1")).toBeNull();
+  });
+});
+
+describe("reserveSeat with several tickets", () => {
+  it("holds quantity seats in one order and charges price × quantity", async () => {
+    addTier("a", 10, 1, 800);
+    const seat = await reserve("a", "o1", NOW, "ip-o1", 3);
+    expect(seat).toMatchObject({ quantity: 3, unitPence: 800, amountPence: 2400 });
+    const row = db.raw
+      .prepare("SELECT quantity, amount_pence FROM ticket_orders WHERE id = 'o1'")
+      .get();
+    expect({ ...row }).toEqual({ quantity: 3, amount_pence: 2400 });
+    const { tiers } = await getActiveTier(db, EVENT, NOW);
+    expect(tiers[0]).toMatchObject({ held: 3, paid: 0, left: 7 });
+  });
+
+  it("refuses more seats than the tier has left, and takes exactly what's left", async () => {
+    addTier("a", 5, 1);
+    await reserve("a", "first", NOW, "ip-1", 3);
+    expect(await reserve("a", "too-many", NOW, "ip-2", 3)).toBeNull();
+    expect(await reserve("a", "exact", NOW, "ip-2", 2)).not.toBeNull();
+    expect((await getActiveTier(db, EVENT, NOW)).active).toBeNull();
+  });
+
+  it("lets only one of two reservations take seats the tier can hold once", async () => {
+    addTier("a", 4, 1);
+    const results = await Promise.all([
+      reserve("a", "o1", NOW, "ip-1", 3),
+      reserve("a", "o2", NOW, "ip-2", 3),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const held = db.raw.prepare("SELECT SUM(quantity) AS n FROM ticket_orders").get() as {
+      n: number;
+    };
+    expect(held.n).toBe(3);
+  });
+
+  it(`refuses 0, a fraction or more than ${MAX_TICKETS_PER_ORDER} tickets`, async () => {
+    addTier("a", 50, 1);
+    for (const quantity of [0, 1.5, MAX_TICKETS_PER_ORDER + 1]) {
+      expect(await reserve("a", `o${quantity}`, NOW, "ip", quantity)).toBeNull();
+    }
+    expect(await reserve("a", "max", NOW, "ip", MAX_TICKETS_PER_ORDER)).not.toBeNull();
   });
 });
 
@@ -170,6 +234,7 @@ describe("getOrderBySession", () => {
       status: "paid",
       eventId: EVENT,
       tierName: "a",
+      quantity: 1,
       amountPence: 1200,
       name: "Buyer o1",
     });
@@ -196,8 +261,8 @@ describe("confirmOrder", () => {
     const first = await confirmOrder(db, input);
     const second = await confirmOrder(db, input);
 
-    expect(first).toEqual(expect.any(String));
-    expect(second).toBeNull();
+    expect(first).toEqual([expect.any(String)]);
+    expect(second).toEqual([]);
     const order = db.raw
       .prepare("SELECT status, email, name, paid_at FROM ticket_orders WHERE id = 'o1'")
       .get();
@@ -208,7 +273,52 @@ describe("confirmOrder", () => {
       paid_at: NOW + 5,
     });
     const tickets = db.raw.prepare("SELECT id FROM tickets WHERE order_id = 'o1'").all();
-    expect(tickets.map((t) => t.id)).toEqual([first]);
+    expect(tickets.map((t) => t.id)).toEqual(first);
+  });
+
+  it("creates one ticket per seat, numbered from 0, and none on a replay", async () => {
+    addTier("a", 10, 1);
+    const ids = await buyMany("a", "o1", 3);
+    expect(new Set(ids).size).toBe(3);
+    const replay = await confirmOrder(db, {
+      stripeSessionId: "cs_o1",
+      email: null,
+      name: null,
+      paidAt: NOW,
+    });
+    expect(replay).toEqual([]);
+    const rows = db.raw
+      .prepare("SELECT id, seq FROM tickets WHERE order_id = 'o1' ORDER BY seq")
+      .all();
+    expect(rows.map((r) => ({ ...r }))).toEqual(ids.map((id, seq) => ({ id, seq })));
+  });
+
+  it("fills in only the missing seats of an order paid with some tickets", async () => {
+    addTier("a", 10, 1);
+    await reserve("a", "o1", NOW, "ip-o1", 3);
+    await attachStripeSession(db, "o1", "cs_o1");
+    db.raw
+      .prepare("UPDATE ticket_orders SET status = 'paid', paid_at = ? WHERE id = 'o1'")
+      .run(NOW);
+    db.raw.prepare("INSERT INTO tickets (id, order_id, seq) VALUES ('kept', 'o1', 0)").run();
+
+    const created = await confirmOrder(db, {
+      stripeSessionId: "cs_o1",
+      email: null,
+      name: null,
+      paidAt: NOW,
+    });
+
+    expect(created).toHaveLength(2);
+    const seqs = db.raw
+      .prepare("SELECT id, seq FROM tickets WHERE order_id = 'o1' ORDER BY seq")
+      .all()
+      .map((r) => ({ ...r }));
+    expect(seqs).toEqual([
+      { id: "kept", seq: 0 },
+      { id: created[0], seq: 1 },
+      { id: created[1], seq: 2 },
+    ]);
   });
 
   it("creates the missing ticket for an order already paid without one", async () => {
@@ -219,22 +329,22 @@ describe("confirmOrder", () => {
       .prepare("UPDATE ticket_orders SET status = 'paid', paid_at = ? WHERE id = 'o1'")
       .run(NOW);
 
-    const ticketId = await confirmOrder(db, {
+    const ticketIds = await confirmOrder(db, {
       stripeSessionId: "cs_o1",
       email: "a@example.com",
       name: "A",
       paidAt: NOW,
     });
 
-    expect(ticketId).toEqual(expect.any(String));
+    expect(ticketIds).toEqual([expect.any(String)]);
     const count = db.raw.prepare("SELECT COUNT(*) AS n FROM tickets").get() as { n: number };
     expect(count.n).toBe(1);
   });
 
-  it("returns null for an unknown session", async () => {
+  it("creates nothing for an unknown session", async () => {
     expect(
       await confirmOrder(db, { stripeSessionId: "cs_none", email: null, name: null, paidAt: NOW }),
-    ).toBeNull();
+    ).toEqual([]);
   });
 });
 
@@ -269,9 +379,11 @@ describe("getActiveTier", () => {
     await reserve("second", "o2");
     const soldOut = await getActiveTier(db, EVENT, NOW);
     expect(soldOut.active).toBeNull();
-    expect(soldOut.tiers.map((t) => ({ id: t.id, paid: t.paid, held: t.held }))).toEqual([
-      { id: "early", paid: 1, held: 0 },
-      { id: "second", paid: 0, held: 1 },
+    expect(
+      soldOut.tiers.map((t) => ({ id: t.id, paid: t.paid, held: t.held, left: t.left })),
+    ).toEqual([
+      { id: "early", paid: 1, held: 0, left: 0 },
+      { id: "second", paid: 0, held: 1, left: 0 },
     ]);
   });
 
@@ -323,6 +435,8 @@ describe("listPaidOrders", () => {
       {
         orderId: "o1",
         ticketId,
+        seq: 0,
+        quantity: 1,
         name: "Buyer o1",
         email: "o1@example.com",
         tierName: "a",
@@ -331,6 +445,29 @@ describe("listPaidOrders", () => {
         checkedInAt: NOW + 50,
         checkedInBy: "door@example.com",
       },
+    ]);
+  });
+});
+
+describe("listPaidOrders with several tickets", () => {
+  it("lists one row per ticket, in seat order, each checked in on its own", async () => {
+    addTier("a", 10, 1, 800);
+    const ids = await buyMany("a", "o1", 3);
+    await checkIn(db, { ticketId: ids[1] as string, by: "door@example.com", now: NOW + 50 });
+
+    const rows = await listPaidOrders(db, EVENT);
+    expect(
+      rows.map((r) => ({
+        ticketId: r.ticketId,
+        seq: r.seq,
+        quantity: r.quantity,
+        amountPence: r.amountPence,
+        checkedInAt: r.checkedInAt,
+      })),
+    ).toEqual([
+      { ticketId: ids[0], seq: 0, quantity: 3, amountPence: 2400, checkedInAt: null },
+      { ticketId: ids[1], seq: 1, quantity: 3, amountPence: 2400, checkedInAt: NOW + 50 },
+      { ticketId: ids[2], seq: 2, quantity: 3, amountPence: 2400, checkedInAt: null },
     ]);
   });
 });

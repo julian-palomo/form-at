@@ -21,6 +21,8 @@ function order(overrides: Partial<PaidOrder>): PaidOrder {
   return {
     orderId: "o",
     ticketId: "t",
+    seq: 0,
+    quantity: 1,
     name: "Isla Grant",
     email: "isla@example.com",
     tierName: "general",
@@ -33,19 +35,22 @@ function order(overrides: Partial<PaidOrder>): PaidOrder {
 }
 
 describe("buildDoorCsv", () => {
-  it("writes the header and one row per order, with ISO check-in times", () => {
-    const csv = buildDoorCsv([order({}), order({ name: "Ada", checkedInAt: NOW })]);
+  it("writes the header and one row per ticket, with its seat and ISO check-in time", () => {
+    const csv = buildDoorCsv([
+      order({}),
+      order({ name: "Ada", ticketId: "t2", seq: 1, quantity: 2, checkedInAt: NOW }),
+    ]);
     expect(csv.split("\r\n")).toEqual([
-      "name,email,tier,status,checked_in_at",
-      "Isla Grant,isla@example.com,general,not_checked_in,",
-      `Ada,isla@example.com,general,checked_in,${new Date(NOW).toISOString()}`,
+      "name,email,tier,ticket,status,checked_in_at",
+      "Isla Grant,isla@example.com,general,1 of 1,not_checked_in,",
+      `Ada,isla@example.com,general,2 of 2,checked_in,${new Date(NOW).toISOString()}`,
       "",
     ]);
   });
 
   it("leaves a null name or email empty", () => {
     const csv = buildDoorCsv([order({ name: null, email: null })]);
-    expect(csv.split("\r\n")[1]).toBe(",,general,not_checked_in,");
+    expect(csv.split("\r\n")[1]).toBe(",,general,1 of 1,not_checked_in,");
   });
 
   it("quotes commas and quotes, and defuses spreadsheet formulas", () => {
@@ -80,17 +85,18 @@ describe("GET /api/tickets/door-csv", () => {
     await reserveSeat(db, {
       tierId: "format-004-early",
       orderId: "o1",
+      quantity: 1,
       now: NOW - 60_000,
       expiresAt: NOW + 60_000,
     });
     await attachStripeSession(db, "o1", "cs_o1");
-    const ticketId = await confirmOrder(db, {
+    const [ticketId] = await confirmOrder(db, {
       stripeSessionId: "cs_o1",
       email: "isla@example.com",
       name: "Isla Grant",
       paidAt: NOW - 30_000,
     });
-    if (!ticketId) throw new Error("confirmOrder returned null");
+    if (!ticketId) throw new Error("confirmOrder created no ticket");
     await checkIn(db, { ticketId, by: "door@example.com", now: NOW });
   });
 
@@ -116,7 +122,7 @@ describe("GET /api/tickets/door-csv", () => {
       'attachment; filename="format-004-door.csv"',
     );
     expect(await response.text()).toBe(
-      `name,email,tier,status,checked_in_at\r\nIsla Grant,isla@example.com,early,checked_in,${new Date(NOW).toISOString()}\r\n`,
+      `name,email,tier,ticket,status,checked_in_at\r\nIsla Grant,isla@example.com,early,1 of 1,checked_in,${new Date(NOW).toISOString()}\r\n`,
     );
   });
 

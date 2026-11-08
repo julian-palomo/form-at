@@ -7,7 +7,8 @@ import type { AccessEnv } from "~/utils/accessIdentity";
 // path has no `.csv` extension on purpose: server.ts hands any path ending in
 // an extension to the static assets, which would answer 404.
 
-const HEADER = "name,email,tier,status,checked_in_at";
+// One row per ticket; `ticket` is "2 of 3" for an order of several.
+const HEADER = "name,email,tier,ticket,status,checked_in_at";
 
 // A cell a spreadsheet would read as a formula gets a leading quote: names
 // and emails are typed by buyers. Then RFC 4180 quoting for commas, quotes
@@ -24,6 +25,7 @@ export function buildDoorCsv(orders: PaidOrder[]): string {
       csvCell(o.name),
       csvCell(o.email),
       csvCell(o.tierName),
+      o.seq == null ? "" : `${o.seq + 1} of ${o.quantity}`,
       o.checkedInAt == null ? "not_checked_in" : "checked_in",
       o.checkedInAt == null ? "" : new Date(o.checkedInAt).toISOString(),
     ].join(","),
