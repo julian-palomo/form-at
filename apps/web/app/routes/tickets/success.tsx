@@ -1,10 +1,10 @@
-import { Button, PageTitle, TerminalRow } from "@form-at/ui";
+import { Button, PageTitle, TerminalRow, cn } from "@form-at/ui";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { PageLayout } from "~/components/PageLayout";
 import { TicketCard } from "~/components/tickets/TicketCard";
 import { type OrderView, fetchOrderStatus } from "~/data/tickets";
-import { useStore } from "~/store";
+import { useStore, useStoreHydrated } from "~/store";
 import { pageHead } from "~/utils/head";
 import { formatPence } from "~/utils/money";
 
@@ -14,7 +14,12 @@ import { formatPence } from "~/utils/money";
 // sw.ts keeps `/tickets/` out of its navigation cache, so this page is never
 // served from a cache: a cached "confirming…" would never turn into "you're in".
 // A paid order's tickets are shown here and stored on the device, so the
-// buyer has them in the app before the email arrives.
+// buyer has them in the app before the email arrives. The first time this
+// device sees the order paid, the confetti plays (Celebration, lazy: the
+// main bundle gains nothing) and the title glows gold for as long; the
+// device remembers the session, so coming back here replays nothing.
+
+const Celebration = lazy(() => import("~/components/tickets/Celebration"));
 
 export const Route = createFileRoute("/tickets/success")({
   validateSearch: (search: Record<string, unknown>): { session_id?: string } =>
@@ -37,16 +42,21 @@ export const Route = createFileRoute("/tickets/success")({
 
 function TicketSuccess() {
   const { order } = Route.useLoaderData();
+  const { session_id: sessionId } = Route.useSearch();
   return (
     <PageLayout>
-      <div className="flex-1">{order ? <OrderState order={order} /> : <UnknownOrder />}</div>
+      <div className="flex-1">
+        {order && sessionId ? <OrderState order={order} sessionId={sessionId} /> : <UnknownOrder />}
+      </div>
     </PageLayout>
   );
 }
 
-function OrderState({ order }: { order: OrderView }) {
+/** Exported for tests. */
+export function OrderState({ order, sessionId }: { order: OrderView; sessionId: string }) {
   const router = useRouter();
   useStoreOrderTickets(order);
+  const { celebrating, endCelebration } = useCelebration(sessionId, order.status === "paid");
   const rows: Array<[string, string]> = [
     ["event", order.eventTitle],
     ["date", order.date],
@@ -59,7 +69,17 @@ function OrderState({ order }: { order: OrderView }) {
   if (order.status === "paid") {
     return (
       <>
-        <PageTitle className="text-3xl sm:text-4xl font-display font-bold leading-tight">
+        {celebrating && (
+          <Suspense fallback={null}>
+            <Celebration onDone={endCelebration} />
+          </Suspense>
+        )}
+        <PageTitle
+          className={cn(
+            "text-3xl sm:text-4xl font-display font-bold leading-tight transition-[text-shadow] duration-700",
+            celebrating && "[text-shadow:0_0_18px_rgba(197,133,56,0.55)]",
+          )}
+        >
           you're in{order.name ? `, ${order.name}` : ""}
         </PageTitle>
         <div className="space-y-1 mb-6">
@@ -153,6 +173,28 @@ function useStoreOrderTickets(order: OrderView) {
       })),
     );
   }, [addTickets, order]);
+}
+
+/**
+ * Whether the celebration is playing: it starts once the store has
+ * rehydrated, if this device hasn't celebrated this session's order yet,
+ * and the session is marked at once so a reload mid-shower doesn't restart it.
+ */
+function useCelebration(sessionId: string, paid: boolean) {
+  const hydrated = useStoreHydrated();
+  const celebrated = useStore((s) => s.celebratedOrders.includes(sessionId));
+  const markCelebrated = useStore((s) => s.markCelebrated);
+  const [celebrating, setCelebrating] = useState(false);
+  const [decided, setDecided] = useState(false);
+  useEffect(() => {
+    if (!hydrated || !paid || decided) return;
+    setDecided(true);
+    if (celebrated) return;
+    setCelebrating(true);
+    markCelebrated(sessionId);
+  }, [hydrated, paid, decided, celebrated, markCelebrated, sessionId]);
+  const endCelebration = useCallback(() => setCelebrating(false), []);
+  return { celebrating, endCelebration };
 }
 
 function UnknownOrder() {

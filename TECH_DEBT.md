@@ -1658,9 +1658,8 @@ while trying the page before the night are real rows: clear them with
 The sales list (`apps/admin/app/routes/tickets.tsx`) has no CSV download. Its
 rows need the same cell escaping as the door CSV
 (`routes/api/tickets/door-csv.ts`'s `csvCell`: formula defusing, RFC 4180
-quoting), and there must be one implementation of it, not two. Moving `csvCell`
-into a shared `utils/csv.ts` waits until the door CSV's `barcode` column has
-landed, since both changes touch that file.
+quoting), and there must be one implementation of it, not two: the first
+change that needs it elsewhere moves `csvCell` into a shared `utils/csv.ts`.
 
 **Re-visit when** refunds become more than a handful per event.
 

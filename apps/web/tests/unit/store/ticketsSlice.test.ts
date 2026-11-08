@@ -18,7 +18,7 @@ const ticket = (token: string, seq: number, storedAt = 1): StoredTicket => ({
 
 beforeEach(async () => {
   localStorage.clear();
-  useStore.setState({ tickets: {} });
+  useStore.setState({ tickets: {}, celebratedOrders: [] });
   await useStore.persist.rehydrate();
 });
 
@@ -58,5 +58,17 @@ describe("ticketsSlice", () => {
       (eventId) => (eventId === "later" ? "2027-01-01" : "2026-12-05"),
     );
     expect(list.map((t) => t.token)).toEqual(["a", "b", "c"]);
+  });
+
+  it("remembers a celebrated checkout session once, across a reload", async () => {
+    useStore.getState().markCelebrated("cs_test_a");
+    useStore.getState().markCelebrated("cs_test_a");
+    expect(useStore.getState().celebratedOrders).toEqual(["cs_test_a"]);
+
+    const saved = localStorage.getItem("format-player") ?? "";
+    useStore.setState({ celebratedOrders: [] });
+    localStorage.setItem("format-player", saved);
+    await useStore.persist.rehydrate();
+    expect(useStore.getState().celebratedOrders).toEqual(["cs_test_a"]);
   });
 });

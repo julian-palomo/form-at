@@ -31,6 +31,13 @@ export type TicketsSlice = {
   tickets: Record<string, StoredTicket>;
   /** Adds what isn't stored yet; a ticket already here keeps its `storedAt`. */
   addTickets: (tickets: StoredTicket[]) => void;
+  /**
+   * The Stripe Checkout sessions whose paid order this device has celebrated,
+   * so the confetti plays once per purchase and not on every return to the
+   * success page.
+   */
+  celebratedOrders: string[];
+  markCelebrated: (sessionId: string) => void;
 };
 
 export const createTicketsSlice: StateCreator<TicketsSlice, [], [], TicketsSlice> = (set) => ({
@@ -43,6 +50,13 @@ export const createTicketsSlice: StateCreator<TicketsSlice, [], [], TicketsSlice
         tickets: { ...state.tickets, ...Object.fromEntries(fresh.map((t) => [t.token, t])) },
       };
     }),
+  celebratedOrders: [],
+  markCelebrated: (sessionId) =>
+    set((state) =>
+      state.celebratedOrders.includes(sessionId)
+        ? {}
+        : { celebratedOrders: [...state.celebratedOrders, sessionId] },
+    ),
 });
 
 /** Stored tickets in order: by event date, then order, then seat. */

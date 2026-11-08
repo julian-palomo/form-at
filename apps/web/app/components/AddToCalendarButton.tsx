@@ -46,13 +46,11 @@ export function AddToCalendarButton({ event }: { event: Event }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex items-center justify-center gap-4 w-full sm:w-auto sm:min-w-[280px] border border-gold/60 hover:border-gold px-6 py-3 text-sm text-grey hover:text-white transition-colors cursor-pointer tracking-widest"
-      >
-        <span className="text-gold">›</span> <span>add_to_calendar </span>
-      </button>
+      {/* A bracket button at the same weight as [ share ] beside it: the
+          page's one heavy call to action is the buy button. */}
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        add_to_calendar
+      </Button>
       <Modal
         open={open}
         onClose={() => setOpen(false)}
