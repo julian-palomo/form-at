@@ -18,6 +18,7 @@ its own key too.
 - **`ci.yml`** on push (non-main) + PR. Jobs:
   - `static`: per-workspace Biome lint for `apps/web`, `apps/admin`, `packages/ui`, `packages/data` and `apps/rum-archiver`, plus `turbo tsc` across all of them, plus a Vite build of both apps.
   - `knip`.
+  - `hooks`: `bash .claude/hooks/tests/run.sh`, the Claude Code hook tests. Needs `pnpm install` first for Biome.
   - `unit`: all five workspaces.
   - `sets-snapshot`: regenerates `sets.generated.ts` from live D1 and fails on drift from the committed copy.
   - `chromatic`: visual regression for `packages/ui`.
