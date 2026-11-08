@@ -27,17 +27,18 @@ async function paidTicket(orderId: string): Promise<string> {
   await reserveSeat(db, {
     tierId: "format-004-early",
     orderId,
+    quantity: 1,
     now: NOW - 60_000,
     expiresAt: NOW + 60_000,
   });
   await attachStripeSession(db, orderId, `cs_${orderId}`);
-  const ticketId = await confirmOrder(db, {
+  const [ticketId] = await confirmOrder(db, {
     stripeSessionId: `cs_${orderId}`,
     email: `${orderId}@example.com`,
     name: `Buyer ${orderId}`,
     paidAt: NOW - 30_000,
   });
-  if (!ticketId) throw new Error("confirmOrder returned null");
+  if (!ticketId) throw new Error("confirmOrder created no ticket");
   return ticketId;
 }
 

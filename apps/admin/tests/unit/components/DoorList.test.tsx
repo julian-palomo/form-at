@@ -11,6 +11,8 @@ const CHECKED_IN_AT = Date.UTC(2026, 11, 5, 23, 42);
 function order(overrides: Partial<PaidOrder> & Pick<PaidOrder, "orderId">): PaidOrder {
   return {
     ticketId: `ticket-${overrides.orderId}`,
+    seq: 0,
+    quantity: 1,
     name: null,
     email: null,
     tierName: "general",
@@ -113,5 +115,30 @@ describe("DoorList", () => {
     expect(await within(isla).findByText(/already used at 23:42/)).toBeInTheDocument();
     expect(within(isla).getByText("by door@example.com")).toBeInTheDocument();
     expect(screen.getByText("online in").nextSibling?.textContent).toBe("2");
+  });
+
+  it("lists each ticket of an order of several as its own row, numbered, and counts tickets", () => {
+    const group = [0, 1, 2].map((seq) =>
+      order({
+        orderId: "g",
+        ticketId: `g-${seq}`,
+        seq,
+        quantity: 3,
+        name: "Group Buyer",
+        amountPence: 3600,
+      }),
+    );
+    render(<DoorList orders={group} door={DOOR} capacity={300} onRefresh={noRefresh} />);
+    expect(screen.getByText("general · 1 of 3")).toBeInTheDocument();
+    expect(screen.getByText("general · 3 of 3")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /check in/i })).toHaveLength(3);
+    expect(screen.getByText("paid online").nextSibling?.textContent).toBe("3");
+  });
+
+  it("counts every seat of a paid order whose tickets are missing", () => {
+    const missing = order({ orderId: "m", ticketId: null, seq: null, quantity: 4 });
+    render(<DoorList orders={[missing]} door={DOOR} capacity={300} onRefresh={noRefresh} />);
+    expect(screen.getByText("paid online").nextSibling?.textContent).toBe("4");
+    expect(screen.getByText("general · 4 tickets")).toBeInTheDocument();
   });
 });

@@ -11,10 +11,12 @@ test.describe("admin door list", () => {
     await expect(page.getByRole("heading", { name: /door/i })).toBeVisible();
     await expect(page.getByText(/sample data/i)).toBeVisible();
 
+    // One row per ticket: Callum's order of 2 is two rows.
     const rows = page.getByRole("listitem");
-    await expect(rows).toHaveCount(4);
+    await expect(rows).toHaveCount(5);
+    await expect(page.getByText("second · 2 of 2")).toBeVisible();
     await expect(page.getByText("in at 23:42")).toBeVisible();
-    await expect(page.getByRole("button", { name: /check in/i })).toHaveCount(3);
+    await expect(page.getByRole("button", { name: /check in/i })).toHaveCount(4);
     await expect(page.getByRole("link", { name: /download csv/i })).toHaveAttribute(
       "href",
       "/api/tickets/door-csv",
@@ -24,9 +26,9 @@ test.describe("admin door list", () => {
   test("the door counter adds door sales to the online check-ins", async ({ page }) => {
     await gotoAndHydrate(page, "/door");
     const counter = page.getByRole("region", { name: "door sales" });
-    // Sample data: 1 online in + 7 cash + 4 card; 300 − 4 paid online − 11.
+    // Sample data: 1 online in + 7 cash + 4 card; 300 − 5 paid online − 11.
     await expect(counter).toContainText("12 / 300");
-    await expect(counter.getByText("285", { exact: true })).toBeVisible();
+    await expect(counter.getByText("284", { exact: true })).toBeVisible();
     await expect(counter.getByText("£84.00")).toBeVisible();
     await expect(counter.getByRole("button", { name: /\+1 cash/ })).toBeVisible();
     await expect(counter.getByRole("button", { name: /\+1 card/ })).toBeVisible();
@@ -39,7 +41,7 @@ test.describe("admin door list", () => {
     const rows = page.getByRole("listitem");
 
     await search.fill("callum");
-    await expect(rows).toHaveCount(1);
+    await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("Callum Reid");
 
     await search.fill("no-name@");
@@ -47,6 +49,6 @@ test.describe("admin door list", () => {
     await expect(rows.first()).toContainText("no-name@example.com");
 
     await search.fill("");
-    await expect(rows).toHaveCount(4);
+    await expect(rows).toHaveCount(5);
   });
 });
