@@ -32,8 +32,8 @@ each writer verifies the Access identity server-side via
 `routes/api/tickets/check-in.ts`, `routes/api/tickets/door-sales.ts` (door `+1`
 and `−1`), `routes/api/tickets/door-price.ts`. Add nothing that skips it; only the read-only
 aggregate queries may. Reads of buyer data aren't aggregates: the `/door` loader
-(`data/door.ts`) and `routes/api/tickets/door-csv.ts` verify it too, through
-`utils/accessIdentity.ts`. There is deliberately no dev-mode
+(`data/door.ts`), `routes/api/tickets/door-csv.ts` and the `/tickets` loader
+(`data/sales.ts`) verify it too, through `utils/accessIdentity.ts`. There is deliberately no dev-mode
 bypass. Paired with the host guard — Access covers neither the `*.pages.dev`
 hostname nor individual endpoint calls.
 
