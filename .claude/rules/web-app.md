@@ -32,7 +32,7 @@ should own. It doesn't.
 | Navigation | `apps/web/app/components/SwipeNavigator.tsx` — wraps `<Outlet />`, swipes across `ROUTES = ["/", "/sets", "/events", "/djs"]` | Outgoing page animates via a `cloneNode` snapshot + direct DOM writes; the gold dot indicator likewise. Deliberately not React re-renders. |
 | Analytics | `apps/web/app/routes/api/signal.ts`, `hooks/useTrackEvent.ts` | `navigator.sendBeacon` on pause, track change and tab close; plays under 3s ignored. Lands in D1 `plays`. |
 | Web Analytics beacon | `apps/web/app/utils/rootHead.ts`, tag in `packages/data/src/webAnalytics.ts` | **We inject it ourselves** — Cloudflare's automatic edge injection worked, then silently stopped. That file's header has the evidence and why manual is also the more precise option. Its host must stay allowlisted in the CSP in BOTH `apps/web/app/server.ts` and `public/_headers`. |
-| Server entry | `apps/web/app/server.ts`, `apps/admin/app/server.ts` | Forwards `env.DB` as `context.cloudflare.env`. See above. |
+| Server entry | `apps/web/app/server.ts`, `apps/admin/app/server.ts` | Forwards `env.DB` as `context.cloudflare.env`; web's also passes `context.request` (`cf-connecting-ip` and the origin) for ticket checkout. See above. |
 
 ## Store slice map — `apps/web/app/store/`
 

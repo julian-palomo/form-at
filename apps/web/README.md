@@ -10,7 +10,7 @@ lives in the [root README](../../README.md) and isn't repeated here.
 
 ```bash
 pnpm dev:web      # :5173
-pnpm test:web     # unit (Vitest + jsdom)
+pnpm test:web     # unit (Vitest, jsdom; real-SQLite tests under node)
 pnpm -C apps/web test:e2e
 ```
 

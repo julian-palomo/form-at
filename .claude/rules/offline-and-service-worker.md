@@ -7,6 +7,8 @@ paths:
   - "apps/web/app/components/OfflineReconciler.tsx"
   - "apps/web/app/components/CatalogueSync.tsx"
   - "apps/web/vite.config.ts"
+  - "apps/web/app/data/tickets.ts"
+  - "apps/web/app/routes/tickets/**"
 ---
 
 # Offline audio and the service worker

@@ -46,8 +46,8 @@ tests/
 │   ├── components/    # BookingsButton, CatalogueSync, etc. (shared design-system
 │   │                  #   components live in packages/ui and are tested there)
 │   ├── utils/         # fmt, appContext, deeplink, installCapability…
-│   ├── data/          # beacon-queue, sets, setsForRoute (the D1-fallback logic)
-│   ├── routes/        # API handlers — api-signal, api-event, api-push-subscribe
+│   ├── data/          # beacon-queue, sets, setsForRoute (the D1-fallback logic), tickets (real SQLite)
+│   ├── routes/        # API handlers — api-signal, api-event, api-push-subscribe, api-stripe-webhook (real SQLite)
 │   └── scripts/       # build scripts (optimize-images, generate-peaks)
 ├── fixtures/          # binary test inputs (mediarecorder-fragmented.mp4: a real Chrome recording, cut after 2 fragments)
 ├── e2e/
@@ -60,9 +60,10 @@ tests/
 │   ├── csp-violations.spec.ts # Zero CSP violations on the golden path; allowed hosts reachable
 │   ├── story-video.spec.ts # Story video recorder in a real browser (harness page, no UI)
 │   ├── story-picker.spec.ts # ?story=on entry, install gate, picker (zoomed strip from fine peaks, no audio mid-drag), create → share (Pixel 7; real recording on macOS)
+│   ├── tickets.spec.ts     # Sales off outside Cloudflare: no buy block; /tickets/success handles an unknown session
 │   ├── _helpers.ts         # shared gotoAndHydrate helper, not a spec
 │   └── _port.ts            # the per-checkout dev-server port playwright.config.ts boots on
-└── setup.ts          # jest-dom matchers, jsdom HTMLMediaElement stubs
+└── setup.ts          # jest-dom matchers, jsdom HTMLMediaElement stubs (skipped in `// @vitest-environment node` files)
 ```
 
 ## Conventions

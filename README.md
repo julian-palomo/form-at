@@ -53,7 +53,7 @@ These cards exist at all for a plain reason: two of the three collective members
 
 Three of its features are load-bearing here rather than incidental: file-based routing (`apps/web/app/routes/`), route loaders that run at SSR time so `/sets` arrives with its play counts already rendered, and `createServerFn` for typed server calls with no hand-written API layer. Routes that *are* pure endpoints use `createFileRoute` with a `server: { handlers }` option and no component.
 
-The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry that exists solely to handle Cloudflare's `fetch(request, env, ctx)` calling convention and forward `env.DB` through as `context.cloudflare.env`. **Without that file, D1 is unreachable from every piece of server-side code** — the framework's own entry doesn't know about Cloudflare bindings. `apps/admin/app/server.ts` is the same pattern.
+The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry that exists solely to handle Cloudflare's `fetch(request, env, ctx)` calling convention and forward `env.DB` through as `context.cloudflare.env` (plus the request's IP and origin, which ticket checkout needs). **Without that file, D1 is unreachable from every piece of server-side code** — the framework's own entry doesn't know about Cloudflare bindings. `apps/admin/app/server.ts` is the same pattern.
 
 **The whole Cloudflare stack, chosen together.** The coherence is the point — one platform, one deploy story, one `wrangler.toml`:
 
@@ -61,7 +61,7 @@ The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry
 |---|---|
 | **Pages** | hosts both apps as separate projects |
 | **Workers** | the SSR runtime — and, separately, a Cron Trigger Worker for the analytics archive, because Pages can't run cron |
-| **D1** (SQLite) | play analytics + the sets catalogue |
+| **D1** (SQLite) | play analytics, the sets catalogue, ticket orders |
 | **R2** | audio files — free egress, which matters when a single play is 100–220MB |
 | **Access** | edge auth for the admin subdomain, so there's no auth code to write |
 | **GraphQL Analytics API** | zone edge traffic + Web Analytics (RUM) visits, read live into the admin dashboard |
@@ -260,7 +260,7 @@ pnpm dev          # web on :5173, admin on :5174
 | `pnpm dev` / `pnpm dev:web` / `pnpm dev:admin` | dev servers, all or one |
 | `pnpm build` / `pnpm build:web` / `pnpm build:admin` | production build |
 | `pnpm start` / `pnpm start:web` / `pnpm start:admin` | serve the production build — web `:4173`, admin `:4174` |
-| `pnpm test` | unit tests, all workspaces (~745 across web, admin, ui, data, rum-archiver) |
+| `pnpm test` | unit tests, all workspaces (~1,220 across web, admin, ui, data, rum-archiver) |
 | `pnpm test:e2e` | Playwright (~100 runs: 68 web across 4 projects, 34 admin across 2); first run needs `pnpm exec playwright install` |
 | `pnpm check` | Biome lint + format, then `turbo tsc` |
 | `pnpm knip` | unused code and dependency scan |
@@ -276,7 +276,7 @@ pnpm build:web && pnpm start:web    # :4173, real service worker
 
 **What does need credentials:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for `pnpm build` at the repo root (it regenerates the catalogue snapshot from live D1) and for any `wrangler` deploy. Push-sending scripts need a VAPID key pair — copy `apps/web/.env.example` to `.env`. Peaks generation needs `ffmpeg` on `PATH`.
 
-The dashboard's `edge_traffic` card needs a `CF_ANALYTICS_TOKEN` Pages secret on `form-at-admin` — not locally, where it falls back to sample data. The archiver Worker needs its own `CF_ANALYTICS_TOKEN` (a *separate*, narrower token — see its [README](apps/rum-archiver/README.md)) plus `ARCHIVE_TRIGGER_SECRET` for the manual-run route.
+The dashboard's `edge_traffic` card needs a `CF_ANALYTICS_TOKEN` Pages secret on `form-at-admin` — not locally, where it falls back to sample data. The archiver Worker needs its own `CF_ANALYTICS_TOKEN` (a *separate*, narrower token — see its [README](apps/rum-archiver/README.md)) plus `ARCHIVE_TRIGGER_SECRET` for the manual-run route. Ticket sales need three Pages secrets on `form-at-web` (see [`apps/web/README.md`](apps/web/README.md) § Ticket sales).
 
 ### CI/CD
 

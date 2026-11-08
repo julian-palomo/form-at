@@ -26,8 +26,8 @@ explains the whole setup.
 ## 1. Hard constraints
 
 One line each. The rule file named after the arrow has the full reasoning; read
-it before changing the file a line protects. Every one of these broke silently
-at least once.
+it before changing the file a line protects. Most of these broke silently at
+least once; the rest guard something that would.
 
 - **Never claim something is verified without having run it.** If you didn't run
   the command, read the file or see the test pass, say which. Docs here get
