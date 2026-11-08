@@ -169,5 +169,6 @@ describe("DoorScanner", () => {
     cameraState = state;
     render(<DoorScanner onCheckIn={vi.fn()} />);
     expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.queryByText(/point the camera/)).toBeNull();
   });
 });

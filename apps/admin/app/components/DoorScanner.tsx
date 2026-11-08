@@ -123,7 +123,7 @@ export default function DoorScanner({ onCheckIn }: DoorScannerProps) {
           </p>
         )}
       </div>
-      <ScanResultPanel result={result} />
+      {camera === "running" && <ScanResultPanel result={result} />}
     </section>
   );
 }
