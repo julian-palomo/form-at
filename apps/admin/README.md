@@ -1,8 +1,8 @@
 # apps/admin
 
 The internal dashboard — `admin.formatglasgow.com`. Analytics the collective can
-actually read, plus set upload, set restore, push sending and the door list for
-ticketed nights.
+actually read, plus set upload, set restore, push sending, and for ticketed
+nights the sales list and the door.
 
 A **separate** Cloudflare Pages project rather than a route inside the public
 site. That's what makes the security model work: Cloudflare Access gates the
@@ -20,7 +20,8 @@ pnpm -C apps/admin diagnose-visits   # why is the visits card empty?
 No Cloudflare credentials needed locally — with no D1 binding present the
 dashboard renders fixtures from `app/data/sample-stats.ts` and shows a
 `sample data` marker, so a wrong number can't be mistaken for a real one. `/door`
-does the same with made-up buyers and door sales from `app/data/door.ts`.
+does the same with made-up buyers and door sales from `app/data/door.ts`, and
+`/tickets` with made-up orders and tiers from `app/data/sales.ts`.
 
 ## Layout
 
@@ -28,6 +29,7 @@ does the same with made-up buyers and door sales from `app/data/door.ts`.
 |---|---|
 | `app/routes/dashboard.tsx` | the dashboard; tab content is in `components/*Tab.tsx` |
 | `app/routes/door.tsx` | the door: inside against the venue capacity, room left, `+1 cash` / `+1 card` / `−1` for people paying at the door, the door price and the cash expected in the box; then the paid online orders, search by name or email, one-tap check-in, a refresh button and a CSV download. Counter in `components/DoorSales.tsx` (queries in `data/door-sales.ts`), list and search in `components/DoorList.tsx`, the loader in `data/door.ts` |
+| `app/routes/tickets.tsx` | the sales list: tickets sold, left online and gross, each tier against its cap with what open checkouts hold, then every order newest first (pending ones muted, "holding until HH:MM" or "lapsed"). All counts are tickets, not orders. Totals in `components/SalesTotals.tsx`, orders in `components/OrdersList.tsx`, the loader and `salesTotals` in `data/sales.ts` |
 | `app/routes/api/` | the seven mutating endpoints — upload, presign, restore, send-push, `tickets/check-in`, `tickets/door-sales` (`+1` and `−1`), `tickets/door-price` — and `tickets/door-csv` |
 | `app/data/` | aggregate D1 queries, Cloudflare Analytics reads, the RUM archive reader |
 | `app/utils/hostGuard.ts` | the `*.pages.dev` guard — see below |
@@ -46,9 +48,9 @@ makes the dashboard public.
 **Every mutating endpoint calls `verifyAccessJwt`.** Access gates *page loads* at
 the edge, not individual endpoint calls, so each writer verifies the Access
 identity server-side. All seven do. There is deliberately no dev-mode bypass, and
-only the read-only aggregate queries may skip it. The door list's loader and the
-CSV aren't aggregates (every buyer's name and email), so they verify it too,
-through `utils/accessIdentity.ts`.
+only the read-only aggregate queries may skip it. The door list's loader, its
+CSV and the sales list's loader aren't aggregates (every buyer's name and
+email), so they verify it too, through `utils/accessIdentity.ts`.
 
 ## The CSP: one thing blocked on purpose, two allowed for the upload form
 
