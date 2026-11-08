@@ -676,9 +676,10 @@ CREATE TABLE IF NOT EXISTS rum_capture_runs (
 -- Stripe webhook delivered twice, or a Worker dying between two writes, would
 -- leave them wrong with nothing to repair them. Never add counters back.
 --
--- NOT YET APPLIED to the remote database. Run each statement on its own (never
--- `--file`, see `ALTER TABLE plays ADD COLUMN is_offline` above), in this
--- order, because each table references the one before it:
+-- Applied to the remote database, seed included. Do NOT use `--file` (see
+-- `ALTER TABLE plays ADD COLUMN is_offline` above). A fresh database runs each
+-- statement on its own, in this order, because each table references the one
+-- before it:
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS ticket_tiers (id TEXT PRIMARY KEY, event_id TEXT NOT NULL, name TEXT NOT NULL, price_pence INTEGER NOT NULL, cap INTEGER NOT NULL, sort_order INTEGER NOT NULL)"
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS ticket_orders (id TEXT PRIMARY KEY, stripe_session_id TEXT UNIQUE, event_id TEXT NOT NULL, tier_id TEXT NOT NULL REFERENCES ticket_tiers(id), email TEXT, name TEXT, amount_pence INTEGER NOT NULL, status TEXT NOT NULL CHECK (status IN ('pending','paid','expired','refunded')), created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, paid_at INTEGER)"
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_ticket_orders_tier_status ON ticket_orders (tier_id, status)"
