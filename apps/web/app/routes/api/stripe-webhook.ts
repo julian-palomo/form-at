@@ -17,6 +17,7 @@ type WebhookEnv = { DB?: D1Database; STRIPE_WEBHOOK_SECRET?: string };
 
 type SessionObject = {
   id?: unknown;
+  payment_status?: unknown;
   customer_details?: {
     email?: unknown;
     name?: unknown;
@@ -68,6 +69,10 @@ export async function handleStripeWebhook(
 
   try {
     if (type === "checkout.session.completed") {
+      // A completed session isn't necessarily paid (a delayed payment method
+      // completes first and settles later). Only `paid` confirms; anything
+      // else leaves the order pending, and its hold lapses on its own.
+      if (session?.payment_status !== "paid") return new Response(null, { status: 200 });
       const details = session?.customer_details ?? null;
       // Paid even if the order's hold lapsed: the buyer paid, so the tier may
       // go one over its cap rather than refuse a paying customer.

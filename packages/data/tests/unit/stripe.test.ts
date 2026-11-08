@@ -83,10 +83,11 @@ const PARAMS = {
 };
 
 describe("checkoutSessionBody", () => {
-  it("asks for one ticket at the tier's price in GBP, with the buyer's name required", () => {
+  it("asks for one ticket at the tier's price in GBP, by card, with the buyer's name required", () => {
     const body = Object.fromEntries(checkoutSessionBody(PARAMS));
     expect(body).toMatchObject({
       mode: "payment",
+      "payment_method_types[0]": "card",
       "line_items[0][quantity]": "1",
       "line_items[0][price_data][currency]": "gbp",
       "line_items[0][price_data][unit_amount]": "800",

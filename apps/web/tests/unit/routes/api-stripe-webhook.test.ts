@@ -20,13 +20,14 @@ function sign(body: string, t = Math.floor(NOW_MS / 1000), secret = SECRET) {
   return `t=${t},v1=${createHmac("sha256", secret).update(`${t}.${body}`).digest("hex")}`;
 }
 
-function stripeEvent(type: string, sessionId: string) {
+function stripeEvent(type: string, sessionId: string, paymentStatus = "paid") {
   return JSON.stringify({
     id: "evt_1",
     type,
     data: {
       object: {
         id: sessionId,
+        payment_status: paymentStatus,
         customer_details: {
           email: "buyer@example.com",
           name: "Card Name",
@@ -85,6 +86,13 @@ describe("handleStripeWebhook", () => {
       paid_at: NOW_MS,
     });
     expect(ticketCount()).toBe(1);
+  });
+
+  it("leaves the order pending when the session completed without being paid", async () => {
+    const res = await post(stripeEvent("checkout.session.completed", "cs_test_1", "unpaid"));
+    expect(res.status).toBe(200);
+    expect(order("cs_test_1").status).toBe("pending");
+    expect(ticketCount()).toBe(0);
   });
 
   it("creates one ticket when Stripe delivers the same event twice", async () => {

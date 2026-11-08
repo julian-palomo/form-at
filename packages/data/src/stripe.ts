@@ -35,6 +35,10 @@ export type CheckoutSession = { id: string; url: string };
 export function checkoutSessionBody(params: CheckoutSessionParams): URLSearchParams {
   return new URLSearchParams({
     mode: "payment",
+    // Cards only (Apple Pay and Google Pay ride on them): a card payment is
+    // settled when the session completes. A delayed method such as a bank
+    // debit would complete the session before the money arrives.
+    "payment_method_types[0]": "card",
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "gbp",
     "line_items[0][price_data][unit_amount]": String(params.amountPence),
