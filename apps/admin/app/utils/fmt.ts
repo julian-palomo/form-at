@@ -49,3 +49,17 @@ export function parseSetDuration(s: string): number | undefined {
   const [m, sec] = parts as [number, number];
   return m * 60 + sec;
 }
+
+// Wall-clock HH:MM in Glasgow, for check-in times on the door list. The zone
+// is fixed rather than the device's, so the door phone and the server always
+// print the same time for the same check-in.
+const clockFormat = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Europe/London",
+});
+
+export function fmtClock(ms: number): string {
+  return clockFormat.format(ms);
+}
