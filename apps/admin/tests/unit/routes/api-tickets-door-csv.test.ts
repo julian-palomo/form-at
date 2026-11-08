@@ -1,3 +1,4 @@
+import { signTicketToken, verifyTicketToken } from "@form-at/data/ticketToken";
 // @vitest-environment node
 import type { PaidOrder } from "@form-at/data/tickets";
 import { attachStripeSession, checkIn, confirmOrder, reserveSeat } from "@form-at/data/tickets";
@@ -34,32 +35,56 @@ function order(overrides: Partial<PaidOrder>): PaidOrder {
   };
 }
 
+const SECRET = "test-ticket-signing-secret-0123456789";
+
 describe("buildDoorCsv", () => {
-  it("writes the header and one row per ticket, with its seat and ISO check-in time", () => {
-    const csv = buildDoorCsv([
-      order({}),
-      order({ name: "Ada", ticketId: "t2", seq: 1, quantity: 2, checkedInAt: NOW }),
-    ]);
+  it("writes the header and one row per ticket, with its seat, barcode and ISO check-in time", async () => {
+    const csv = await buildDoorCsv(
+      [order({}), order({ name: "Ada", ticketId: "t2", seq: 1, quantity: 2, checkedInAt: NOW })],
+      SECRET,
+    );
     expect(csv.split("\r\n")).toEqual([
-      "name,email,tier,ticket,status,checked_in_at",
-      "Isla Grant,isla@example.com,general,1 of 1,not_checked_in,",
-      `Ada,isla@example.com,general,2 of 2,checked_in,${new Date(NOW).toISOString()}`,
+      "name,email,tier,ticket,barcode,status,checked_in_at",
+      `Isla Grant,isla@example.com,general,1 of 1,${await signTicketToken("t", SECRET)},not_checked_in,`,
+      `Ada,isla@example.com,general,2 of 2,${await signTicketToken("t2", SECRET)},checked_in,${new Date(NOW).toISOString()}`,
       "",
     ]);
   });
 
-  it("leaves a null name or email empty", () => {
-    const csv = buildDoorCsv([order({ name: null, email: null })]);
-    expect(csv.split("\r\n")[1]).toBe(",,general,1 of 1,not_checked_in,");
+  it("writes a barcode the check-in endpoint's verification accepts", async () => {
+    const csv = await buildDoorCsv([order({ ticketId: "ticket-123" })], SECRET);
+    const barcode = csv.split("\r\n")[1]?.split(",")[4] ?? "";
+    expect(await verifyTicketToken(barcode, SECRET)).toBe("ticket-123");
   });
 
-  it("quotes commas and quotes, and defuses spreadsheet formulas", () => {
-    const csv = buildDoorCsv([
-      order({ name: 'Reid, "Cal"' }),
-      order({ name: "=HYPERLINK(1)" }),
-      order({ name: "-1+2" }),
-      order({ name: "@sum" }),
-    ]);
+  it.each([undefined, "too-short"])(
+    "leaves the barcode empty when the signing secret is %j",
+    async (secret) => {
+      const csv = await buildDoorCsv([order({})], secret);
+      expect(csv.split("\r\n")[1]).toBe(
+        "Isla Grant,isla@example.com,general,1 of 1,,not_checked_in,",
+      );
+    },
+  );
+
+  it("leaves a null name or email empty", async () => {
+    const csv = await buildDoorCsv(
+      [order({ name: null, email: null, ticketId: null, seq: null })],
+      SECRET,
+    );
+    expect(csv.split("\r\n")[1]).toBe(",,general,,,not_checked_in,");
+  });
+
+  it("quotes commas and quotes, and defuses spreadsheet formulas", async () => {
+    const csv = await buildDoorCsv(
+      [
+        order({ name: 'Reid, "Cal"' }),
+        order({ name: "=HYPERLINK(1)" }),
+        order({ name: "-1+2" }),
+        order({ name: "@sum" }),
+      ],
+      SECRET,
+    );
     const rows = csv.split("\r\n");
     expect(rows[1]).toMatch(/^"Reid, ""Cal""",/);
     expect(rows[2]).toMatch(/^'=HYPERLINK\(1\),/);
@@ -122,8 +147,14 @@ describe("GET /api/tickets/door-csv", () => {
       'attachment; filename="format-004-door.csv"',
     );
     expect(await response.text()).toBe(
-      `name,email,tier,ticket,status,checked_in_at\r\nIsla Grant,isla@example.com,early,1 of 1,checked_in,${new Date(NOW).toISOString()}\r\n`,
+      `name,email,tier,ticket,barcode,status,checked_in_at\r\nIsla Grant,isla@example.com,early,1 of 1,,checked_in,${new Date(NOW).toISOString()}\r\n`,
     );
+  });
+
+  it("fills the barcode column with the admin's signing secret", async () => {
+    const response = await handleDoorCsv(csvRequest(), { ...env, TICKET_SIGNING_SECRET: SECRET });
+    const barcode = (await response.text()).split("\r\n")[1]?.split(",")[4] ?? "";
+    expect(await verifyTicketToken(barcode, SECRET)).not.toBeNull();
   });
 
   it("returns 503 when the database isn't bound", async () => {

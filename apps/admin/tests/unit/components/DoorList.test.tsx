@@ -3,10 +3,34 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DoorList } from "~/components/DoorList";
+import type { DoorScannerProps } from "~/components/DoorScanner";
 import type { DoorSummary } from "~/data/door-sales";
 
 // 23:42 UTC on 5 Dec is 23:42 in Glasgow (GMT in winter).
 const CHECKED_IN_AT = Date.UTC(2026, 11, 5, 23, 42);
+
+// The real scanner needs a camera; this one reports one scan of Callum's
+// ticket when its button is pressed (DoorScanner.test.tsx covers the real one).
+vi.mock("~/components/DoorScanner", () => ({
+  default: ({ onCheckIn }: DoorScannerProps) => (
+    <div data-testid="door-scanner">
+      <button
+        type="button"
+        onClick={() =>
+          onCheckIn("ticket-2", {
+            status: "checked_in",
+            checkedInAt: CHECKED_IN_AT,
+            name: "Callum Reid",
+            seq: 0,
+            quantity: 1,
+          })
+        }
+      >
+        fake scan
+      </button>
+    </div>
+  ),
+}));
 
 function order(overrides: Partial<PaidOrder> & Pick<PaidOrder, "orderId">): PaidOrder {
   return {
@@ -140,5 +164,21 @@ describe("DoorList", () => {
     render(<DoorList orders={[missing]} door={DOOR} capacity={300} onRefresh={noRefresh} />);
     expect(screen.getByText("paid online").nextSibling?.textContent).toBe("4");
     expect(screen.getByText("general · 4 tickets")).toBeInTheDocument();
+  });
+
+  it("opens the scanner on demand and shows a scanned ticket on its row", async () => {
+    render(<DoorList orders={ORDERS} door={DOOR} capacity={300} onRefresh={noRefresh} />);
+    expect(screen.queryByTestId("door-scanner")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /\bscan\b/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /fake scan/ }));
+
+    const callum = screen.getByText("Callum Reid").closest("li");
+    if (!callum) throw new Error("no row for Callum");
+    expect(within(callum).getByText("in at 23:42")).toBeInTheDocument();
+    expect(screen.getByText("online in").nextSibling?.textContent).toBe("2");
+
+    await userEvent.click(screen.getByRole("button", { name: /close scanner/ }));
+    expect(screen.queryByTestId("door-scanner")).toBeNull();
   });
 });

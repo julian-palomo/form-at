@@ -1,14 +1,18 @@
 import type { PaidOrder } from "@form-at/data/tickets";
 import { BracketLabel, Button, cn } from "@form-at/ui";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, Suspense, lazy, useState } from "react";
 import type { DoorSummary } from "~/data/door-sales";
 import type { CheckInResponseBody } from "~/routes/api/tickets/check-in";
 import { fmtClock } from "~/utils/fmt";
 import { DoorSales } from "./DoorSales";
 
+// A genuine `import()`, so the QR decoder downloads only when `scan` is
+// pressed, never with the list itself.
+const DoorScanner = lazy(() => import("./DoorScanner"));
+
 // The door: the door sales counter, every paid ticket (an order of 3 is three
-// rows, "1 of 3"…), a search over name and email, and one tap to let a ticket
-// in. Built for a phone in a dark basement: large tap targets, large
+// rows, "1 of 3"…), a QR scanner, a search over name and email, and one tap to
+// let a ticket in. Built for a phone in a dark basement: large tap targets, large
 // text, nothing to scroll sideways. The list is loaded once on the server;
 // search runs here over that list, so it keeps working between refreshes.
 
@@ -39,6 +43,12 @@ function matchesDoorSearch(order: PaidOrder, query: string): boolean {
   );
 }
 
+function outcomeOf(body: CheckInResponseBody): RowOutcome {
+  return body.status === "checked_in"
+    ? { kind: "checked_in", checkedInAt: body.checkedInAt }
+    : { kind: "already_used", checkedInAt: body.checkedInAt, checkedInBy: body.checkedInBy };
+}
+
 function errorFor(status: number): string {
   if (status === 401) return "not authorized: reload the page";
   if (status === 404) return "not valid: no paid ticket with this id";
@@ -50,6 +60,7 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
   const [outcomes, setOutcomes] = useState<Record<string, RowOutcome>>({});
   const [busyTicketId, setBusyTicketId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   const checkedInAtOf = (order: PaidOrder): number | null => {
     if (order.checkedInAt != null) return order.checkedInAt;
@@ -64,6 +75,11 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
   const remaining = paid != null && checkedIn != null ? paid - checkedIn : null;
   const visible = orders?.filter((o) => matchesDoorSearch(o, query)) ?? [];
 
+  // A scan lands on the same row a tap would, so the list and its counts agree.
+  const handleScan = (ticketId: string, body: CheckInResponseBody) => {
+    setOutcomes((prev) => ({ ...prev, [ticketId]: outcomeOf(body) }));
+  };
+
   const handleCheckIn = async (ticketId: string) => {
     setBusyTicketId(ticketId);
     let outcome: RowOutcome;
@@ -74,15 +90,7 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
         body: JSON.stringify({ ticketId }),
       });
       if (response.status === 200 || response.status === 409) {
-        const body = (await response.json()) as CheckInResponseBody;
-        outcome =
-          body.status === "checked_in"
-            ? { kind: "checked_in", checkedInAt: body.checkedInAt }
-            : {
-                kind: "already_used",
-                checkedInAt: body.checkedInAt,
-                checkedInBy: body.checkedInBy,
-              };
+        outcome = outcomeOf((await response.json()) as CheckInResponseBody);
       } else {
         outcome = { kind: "error", message: errorFor(response.status) };
       }
@@ -121,6 +129,22 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
           </div>
         ))}
       </dl>
+
+      <div className="space-y-3">
+        <Button
+          variant="secondary"
+          onClick={() => setScanning((s) => !s)}
+          aria-expanded={scanning}
+          className="min-h-12 text-base"
+        >
+          {scanning ? "close scanner" : "scan"}
+        </Button>
+        {scanning && (
+          <Suspense fallback={<p className="t-body text-grey">loading the scanner…</p>}>
+            <DoorScanner onCheckIn={handleScan} />
+          </Suspense>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <Button

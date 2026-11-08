@@ -292,11 +292,16 @@ export async function expireOrder(db: D1Database, stripeSessionId: string): Prom
  * - `checked_in`: this call let the ticket in.
  * - `already_used`: an earlier check-in did; the door shows when and who.
  * - `not_valid`: no such ticket, or its order isn't paid (e.g. refunded).
+ *
+ * The first two carry whose ticket it is, for the door's "IN · name (2 of 3)":
+ * `seq` counts from 0 within the order.
  */
 export type CheckInResult =
-  | { status: "checked_in"; checkedInAt: number }
-  | { status: "already_used"; checkedInAt: number; checkedInBy: string | null }
+  | ({ status: "checked_in"; checkedInAt: number } & TicketHolder)
+  | ({ status: "already_used"; checkedInAt: number; checkedInBy: string | null } & TicketHolder)
   | { status: "not_valid" };
+
+type TicketHolder = { name: string | null; seq: number; quantity: number };
 
 /**
  * Lets a ticket in once. The UPDATE only matches a ticket of a paid order
@@ -316,21 +321,30 @@ export async function checkIn(
     )
     .bind(input.now, input.by, input.ticketId)
     .run();
-  if (result.meta.changes === 1) return { status: "checked_in", checkedInAt: input.now };
 
   const existing = await db
     .prepare(
-      `SELECT k.checked_in_at, k.checked_in_by FROM tickets k
+      `SELECT k.checked_in_at, k.checked_in_by, k.seq, o.quantity, o.name FROM tickets k
        JOIN ticket_orders o ON o.id = k.order_id
        WHERE k.id = ? AND o.status = 'paid'`,
     )
     .bind(input.ticketId)
-    .first<{ checked_in_at: number | null; checked_in_by: string | null }>();
-  if (existing?.checked_in_at == null) return { status: "not_valid" };
+    .first<{
+      checked_in_at: number | null;
+      checked_in_by: string | null;
+      seq: number;
+      quantity: number;
+      name: string | null;
+    }>();
+  if (existing == null) return { status: "not_valid" };
+  const holder = { name: existing.name, seq: existing.seq, quantity: existing.quantity };
+  if (result.meta.changes === 1) return { status: "checked_in", checkedInAt: input.now, ...holder };
+  if (existing.checked_in_at == null) return { status: "not_valid" };
   return {
     status: "already_used",
     checkedInAt: existing.checked_in_at,
     checkedInBy: existing.checked_in_by,
+    ...holder,
   };
 }
 

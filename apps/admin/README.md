@@ -28,9 +28,9 @@ does the same with made-up buyers and door sales from `app/data/door.ts`, and
 | Path | |
 |---|---|
 | `app/routes/dashboard.tsx` | the dashboard; tab content is in `components/*Tab.tsx` |
-| `app/routes/door.tsx` | the door: inside against the venue capacity, room left, `+1 cash` / `+1 card` / `−1` for people paying at the door, the door price and the cash expected in the box; then the paid online orders, search by name or email, one-tap check-in, a refresh button and a CSV download. Counter in `components/DoorSales.tsx` (queries in `data/door-sales.ts`), list and search in `components/DoorList.tsx`, the loader in `data/door.ts` |
+| `app/routes/door.tsx` | the door: inside against the venue capacity, room left, `+1 cash` / `+1 card` / `−1` for people paying at the door, the door price and the cash expected in the box; then a `scan` button that opens the QR scanner, the paid online tickets, search by name or email, one-tap check-in, a refresh button and a CSV download (with a `barcode` column, the signed token, so RA Scan can import it as a fallback). Counter in `components/DoorSales.tsx` (queries in `data/door-sales.ts`), list and search in `components/DoorList.tsx`, the scanner in `components/DoorScanner.tsx` (lazy; camera and jsQR decoding in `utils/useQrCamera.ts`), the loader in `data/door.ts` |
 | `app/routes/tickets.tsx` | the sales list: tickets sold, left online and gross, each tier against its cap with what open checkouts hold, then every order newest first (pending ones muted, "holding until HH:MM" or "lapsed"). All counts are tickets, not orders. Totals in `components/SalesTotals.tsx`, orders in `components/OrdersList.tsx`, the loader and `salesTotals` in `data/sales.ts` |
-| `app/routes/api/` | the seven mutating endpoints — upload, presign, restore, send-push, `tickets/check-in`, `tickets/door-sales` (`+1` and `−1`), `tickets/door-price` — and `tickets/door-csv` |
+| `app/routes/api/` | the seven mutating endpoints — upload, presign, restore, send-push, `tickets/check-in` (by `ticketId` from a tap, or by the signed `token` from a scan, whose signature is checked before any D1 access), `tickets/door-sales` (`+1` and `−1`), `tickets/door-price` — and `tickets/door-csv` |
 | `app/data/` | aggregate D1 queries, Cloudflare Analytics reads, the RUM archive reader |
 | `app/utils/hostGuard.ts` | the `*.pages.dev` guard — see below |
 | `app/utils/verifyAccessJwt.ts` | server-side Access identity verification |
@@ -82,6 +82,13 @@ real upload finally reaching this step (`TECH_DEBT.md` item 23a again). A
 wildcard, not the literal `<accountId>.r2.cloudflarestorage.com` host, because
 the account id is only known at runtime via env, not at this module's load
 time.
+
+## Ticket signing secret
+
+`TICKET_SIGNING_SECRET` on `form-at-admin` must hold the same value as on
+`form-at-web`, which signs the tokens the tickets' QRs carry. Without it (or
+with a different value) every scan answers "scanner not set up" or NOT VALID,
+and the CSV's `barcode` column comes out empty; check-in by name keeps working.
 
 ## The house rule for numbers
 
