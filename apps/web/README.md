@@ -36,8 +36,9 @@ pnpm build:web && pnpm start:web   # :4173, real service worker
 
 ## Ticket sales
 
-The buy block on an event page (`components/TicketBlock.tsx`) starts a Stripe
-Checkout; Stripe returns the buyer to `/tickets/success`, and
+The buy block on an event page (`components/TicketBlock.tsx`) lets the buyer
+pick 1 to 10 tickets (up to what's left in the tier on sale) and starts a
+Stripe Checkout; Stripe returns the buyer to `/tickets/success`, and
 `/api/stripe-webhook` is the only place an order becomes paid. Sales are on
 only where the Pages environment has the D1 binding and all of these secrets,
 so test keys belong in the Preview environment and Production shows no block

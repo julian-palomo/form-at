@@ -1,5 +1,7 @@
 # Sell tickets with Stripe Checkout, counted capacity and a signed ticket token
 
+Partly superseded by [2026-11-08-several-tickets-per-order.md](2026-11-08-several-tickets-per-order.md): an order now holds 1 to 10 tickets, one `tickets` row per seat.
+
 - **Status:** Accepted
 - **Date:** 2026-11-08
 
