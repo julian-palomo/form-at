@@ -41,7 +41,9 @@ Checkout; Stripe returns the buyer to `/tickets/success`, and
 `/api/stripe-webhook` is the only place an order becomes paid. Sales are on
 only where the Pages environment has the D1 binding and all of these secrets,
 so test keys belong in the Preview environment and Production shows no block
-until live keys are set there:
+until live keys are set there. `main` only deploys to Production; the manual
+**Deploy web preview** workflow (`.github/workflows/preview.yml`) deploys any
+branch to the `staging` branch alias, which runs in Preview:
 
 | Secret | |
 |---|---|
