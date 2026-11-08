@@ -1,5 +1,5 @@
 // Ticket sales queries, shared by apps/web (checkout and the Stripe webhook)
-// and apps/admin (the door list). Tables and their reasoning: the ticket block
+// and apps/admin (the door list and the sales list). Tables and their reasoning: the ticket block
 // at the end of apps/web/schema.sql. Decision record:
 // docs/adr/2026-11-08-stripe-checkout-and-signed-ticket-token.md.
 //
@@ -397,6 +397,70 @@ export async function listPaidOrders(db: D1Database, eventId: string): Promise<P
     paidAt: r.paid_at,
     checkedInAt: r.checked_in_at,
     checkedInBy: r.checked_in_by,
+  }));
+}
+
+/** One order of any status, for the admin sales list. One row per order, not per ticket. */
+export type EventOrder = {
+  orderId: string;
+  name: string | null;
+  email: string | null;
+  tierName: string;
+  /** Tickets in the order. */
+  quantity: number;
+  /** The order's total. */
+  amountPence: number;
+  status: "pending" | "paid" | "expired" | "refunded";
+  createdAt: number;
+  paidAt: number | null;
+  /** When an unpaid order stops holding its seats. */
+  expiresAt: number;
+  /** How many of the order's tickets have been checked in. */
+  ticketsIn: number;
+};
+
+type EventOrderRow = {
+  order_id: string;
+  name: string | null;
+  email: string | null;
+  tier_name: string;
+  quantity: number;
+  amount_pence: number;
+  status: EventOrder["status"];
+  created_at: number;
+  paid_at: number | null;
+  expires_at: number;
+  tickets_in: number;
+};
+
+/** Every order of an event whatever its status, newest first, for the admin sales list. */
+export async function listOrders(db: D1Database, eventId: string): Promise<EventOrder[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT o.id AS order_id, o.name, o.email, t.name AS tier_name, o.quantity,
+         o.amount_pence, o.status, o.created_at, o.paid_at, o.expires_at,
+         (SELECT COUNT(*) FROM tickets k
+            WHERE k.order_id = o.id AND k.checked_in_at IS NOT NULL) AS tickets_in
+       FROM ticket_orders o
+       JOIN ticket_tiers t ON t.id = o.tier_id
+       WHERE o.event_id = ?
+       ORDER BY o.created_at DESC, o.id`,
+    )
+    .bind(eventId)
+    .all<EventOrderRow>();
+
+  return results.map((r) => ({
+    orderId: r.order_id,
+    name: r.name,
+    email: r.email,
+    tierName: r.tier_name,
+    quantity: r.quantity,
+    amountPence: r.amount_pence,
+    status: r.status,
+    createdAt: r.created_at,
+    paidAt: r.paid_at,
+    expiresAt: r.expires_at,
+    ticketsIn: r.tickets_in,
   }));
 }
 
