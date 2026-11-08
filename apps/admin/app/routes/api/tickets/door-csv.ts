@@ -51,7 +51,7 @@ export async function buildDoorCsv(
       csvCell(o.email),
       csvCell(o.tierName),
       o.seq == null ? "" : `${o.seq + 1} of ${o.quantity}`,
-      barcodes[i],
+      barcodes[i] ?? "",
       o.checkedInAt == null ? "not_checked_in" : "checked_in",
       o.checkedInAt == null ? "" : new Date(o.checkedInAt).toISOString(),
     ].join(","),
