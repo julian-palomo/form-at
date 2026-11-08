@@ -8,6 +8,7 @@ import { JsonLd } from "~/components/JsonLd";
 import { PageLayout } from "~/components/PageLayout";
 import { PushOptInCta } from "~/components/PushOptInCta";
 import { SocialLink } from "~/components/SocialLink";
+import { YourTicketsLink } from "~/components/tickets/YourTicketsLink";
 import { useFirstLoad } from "~/hooks/useFirstLoad";
 import { useTypedOnce } from "~/hooks/useTypedOnce";
 import { useStore } from "~/store";
@@ -123,6 +124,10 @@ function Home() {
             margin on phones: PageLayout's fitBottom already clears the chrome
             and the swipe dots. */}
         <div className="flex flex-col items-center gap-3 -mt-[calc(var(--fit-gap)/2)] sm:-mt-4 sm:mb-8 empty:hidden">
+          {/* Only while this device holds a ticket for a night still to come:
+              its own row, since a third bracket beside the socials overflows
+              a phone. */}
+          <YourTicketsLink className="text-sm text-grey hover:text-white transition-colors tracking-widest" />
           <InstallAppButton />
           <PushOptInCta />
         </div>

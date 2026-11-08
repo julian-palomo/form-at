@@ -415,6 +415,7 @@ export async function listPaidOrders(db: D1Database, eventId: string): Promise<P
 }
 
 export type OrderStatus = {
+  orderId: string;
   status: "pending" | "paid" | "expired" | "refunded";
   eventId: string;
   tierName: string;
@@ -422,35 +423,232 @@ export type OrderStatus = {
   /** The order's total. */
   amountPence: number;
   name: string | null;
+  /** The buyer's email from Stripe; null until paid. Never sent to the buyer's page. */
+  email: string | null;
 };
 
-/** One order by its Checkout Session id, for the page Stripe returns the buyer to; null when unknown. */
+/** One order by its Checkout Session id, for the page Stripe returns the buyer to and the webhook's email; null when unknown. */
 export async function getOrderBySession(
   db: D1Database,
   stripeSessionId: string,
 ): Promise<OrderStatus | null> {
   const row = await db
     .prepare(
-      `SELECT o.status, o.event_id, t.name AS tier_name, o.quantity, o.amount_pence, o.name
+      `SELECT o.id, o.status, o.event_id, t.name AS tier_name, o.quantity, o.amount_pence, o.name, o.email
        FROM ticket_orders o JOIN ticket_tiers t ON t.id = o.tier_id
        WHERE o.stripe_session_id = ?`,
     )
     .bind(stripeSessionId)
     .first<{
+      id: string;
       status: OrderStatus["status"];
       event_id: string;
       tier_name: string;
       quantity: number;
       amount_pence: number;
       name: string | null;
+      email: string | null;
     }>();
   if (!row) return null;
   return {
+    orderId: row.id,
     status: row.status,
     eventId: row.event_id,
     tierName: row.tier_name,
     quantity: row.quantity,
     amountPence: row.amount_pence,
     name: row.name,
+    email: row.email,
   };
+}
+
+/** One seat of an order, as the buyer sees it. */
+export type OrderTicket = { id: string; seq: number };
+
+/** The tickets of one order in seat order: empty until the webhook has created them. */
+export async function listOrderTickets(db: D1Database, orderId: string): Promise<OrderTicket[]> {
+  const { results } = await db
+    .prepare("SELECT id, seq FROM tickets WHERE order_id = ? ORDER BY seq")
+    .bind(orderId)
+    .all<OrderTicket>();
+  return results;
+}
+
+/** A ticket with its order, for the page its QR link opens. */
+export type TicketView = {
+  ticketId: string;
+  orderId: string;
+  /** The ticket's place in its order, from 0. */
+  seq: number;
+  /** Tickets in the order. */
+  quantity: number;
+  eventId: string;
+  tierName: string;
+  name: string | null;
+  checkedInAt: number | null;
+};
+
+/**
+ * One ticket by id, only while its order is paid: a refunded order's ticket
+ * is null here, the same as at the door.
+ */
+export async function getTicket(db: D1Database, ticketId: string): Promise<TicketView | null> {
+  const row = await db
+    .prepare(
+      `SELECT k.id, k.order_id, k.seq, k.checked_in_at, o.quantity, o.event_id, o.name,
+         t.name AS tier_name
+       FROM tickets k
+       JOIN ticket_orders o ON o.id = k.order_id
+       JOIN ticket_tiers t ON t.id = o.tier_id
+       WHERE k.id = ? AND o.status = 'paid'`,
+    )
+    .bind(ticketId)
+    .first<{
+      id: string;
+      order_id: string;
+      seq: number;
+      checked_in_at: number | null;
+      quantity: number;
+      event_id: string;
+      name: string | null;
+      tier_name: string;
+    }>();
+  if (!row) return null;
+  return {
+    ticketId: row.id,
+    orderId: row.order_id,
+    seq: row.seq,
+    quantity: row.quantity,
+    eventId: row.event_id,
+    tierName: row.tier_name,
+    name: row.name,
+    checkedInAt: row.checked_in_at,
+  };
+}
+
+/** A paid order with its tickets, for sending the buyer their links again. */
+export type PaidOrderWithTickets = {
+  orderId: string;
+  eventId: string;
+  tierName: string;
+  name: string | null;
+  email: string;
+  quantity: number;
+  tickets: OrderTicket[];
+};
+
+/**
+ * Every paid order whose buyer email matches, case-insensitively, oldest
+ * first, each with its tickets in seat order. Stripe gives the email as the
+ * buyer typed it, so the comparison lowercases both sides.
+ */
+export async function findPaidOrdersByEmail(
+  db: D1Database,
+  email: string,
+): Promise<PaidOrderWithTickets[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT o.id AS order_id, o.event_id, t.name AS tier_name, o.name, o.email, o.quantity,
+         k.id AS ticket_id, k.seq
+       FROM ticket_orders o
+       JOIN ticket_tiers t ON t.id = o.tier_id
+       LEFT JOIN tickets k ON k.order_id = o.id
+       WHERE o.status = 'paid' AND LOWER(o.email) = LOWER(?)
+       ORDER BY o.paid_at, o.id, k.seq`,
+    )
+    .bind(email)
+    .all<{
+      order_id: string;
+      event_id: string;
+      tier_name: string;
+      name: string | null;
+      email: string;
+      quantity: number;
+      ticket_id: string | null;
+      seq: number | null;
+    }>();
+
+  const orders: PaidOrderWithTickets[] = [];
+  for (const r of results) {
+    let order = orders.find((o) => o.orderId === r.order_id);
+    if (!order) {
+      order = {
+        orderId: r.order_id,
+        eventId: r.event_id,
+        tierName: r.tier_name,
+        name: r.name,
+        email: r.email,
+        quantity: r.quantity,
+        tickets: [],
+      };
+      orders.push(order);
+    }
+    if (r.ticket_id && r.seq != null) order.tickets.push({ id: r.ticket_id, seq: r.seq });
+  }
+  return orders;
+}
+
+// ── Ticket emails ───────────────────────────────────────────────────────────
+// `ticket_email_sends`: one row per email the site tried to send about an
+// order, and one per "recover my tickets" request whether or not it matched.
+
+export type TicketEmailKind = "purchase" | "recover";
+
+/** Records an attempt to email a buyer. `orderId` is null for a recovery request that matched nothing. */
+export async function recordTicketEmail(
+  db: D1Database,
+  input: {
+    orderId: string | null;
+    kind: TicketEmailKind;
+    ipHash: string | null;
+    sent: boolean;
+    now: number;
+  },
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO ticket_email_sends (id, order_id, kind, ip_hash, sent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      input.orderId,
+      input.kind,
+      input.ipHash,
+      input.sent ? 1 : 0,
+      input.now,
+    )
+    .run();
+}
+
+/** Recovery requests this connection has made since `since` (unix ms), matched or not. */
+export async function countRecoverRequests(
+  db: D1Database,
+  ipHash: string,
+  since: number,
+): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM ticket_email_sends
+       WHERE kind = 'recover' AND ip_hash = ? AND created_at >= ?`,
+    )
+    .bind(ipHash, since)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+/** Whether an email about this order was accepted by the provider since `since` (unix ms). */
+export async function wasOrderEmailedSince(
+  db: D1Database,
+  orderId: string,
+  since: number,
+): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT 1 AS yes FROM ticket_email_sends
+       WHERE order_id = ? AND sent = 1 AND created_at >= ? LIMIT 1`,
+    )
+    .bind(orderId, since)
+    .first<{ yes: number }>();
+  return row !== null;
 }

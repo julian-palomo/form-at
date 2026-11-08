@@ -3,7 +3,9 @@
 // these to render the share card. Pass `image` (path under public/) to use a
 // custom OG banner — otherwise the root default (`/og-image.png`) is reused.
 // Pass `noindex` for pages that should never appear in search results — same
-// `content="noindex"` value already used by `public/offline.html`.
+// `content="noindex"` value already used by `public/offline.html`. Pass
+// `noReferrer` for a page whose URL is a secret (a ticket token), so a link
+// out of it never carries the URL in the Referer header.
 
 const SITE = "https://formatglasgow.com";
 
@@ -13,12 +15,14 @@ export function pageHead({
   path,
   image,
   noindex,
+  noReferrer,
 }: {
   title: string;
   description: string;
   path: string;
   image?: string;
   noindex?: boolean;
+  noReferrer?: boolean;
 }) {
   const url = `${SITE}${path}`;
   const imageMeta = image
@@ -32,6 +36,7 @@ export function pageHead({
   return {
     meta: [
       ...(noindex ? [{ name: "robots", content: "noindex" }] : []),
+      ...(noReferrer ? [{ name: "referrer", content: "no-referrer" }] : []),
       { title },
       { name: "description", content: description },
       { property: "og:title", content: title },

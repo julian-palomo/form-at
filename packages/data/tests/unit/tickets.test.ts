@@ -6,12 +6,18 @@ import {
   checkIn,
   confirmOrder,
   countLiveHoldsForIp,
+  countRecoverRequests,
   expireOrder,
+  findPaidOrdersByEmail,
   getActiveTier,
   getOrderBySession,
+  getTicket,
+  listOrderTickets,
   listPaidOrders,
+  recordTicketEmail,
   releaseUnstartedOrder,
   reserveSeat,
+  wasOrderEmailedSince,
 } from "~/tickets";
 import { type TestD1, createTestD1 } from "../helpers/sqliteD1";
 
@@ -231,14 +237,125 @@ describe("getOrderBySession", () => {
     addTier("a", 1, 1, 1200);
     await buy("a", "o1");
     expect(await getOrderBySession(db, "cs_o1")).toEqual({
+      orderId: "o1",
       status: "paid",
       eventId: EVENT,
       tierName: "a",
       quantity: 1,
       amountPence: 1200,
       name: "Buyer o1",
+      email: "o1@example.com",
     });
     expect(await getOrderBySession(db, "cs_none")).toBeNull();
+  });
+});
+
+describe("getTicket and listOrderTickets", () => {
+  it("returns a paid order's ticket with its seat and order, in seat order", async () => {
+    addTier("a", 5, 1, 1000);
+    const [first, , third] = await buyMany("a", "o1", 3);
+    if (!first || !third) throw new Error("expected three tickets");
+    expect(await getTicket(db, third)).toEqual({
+      ticketId: third,
+      orderId: "o1",
+      seq: 2,
+      quantity: 3,
+      eventId: EVENT,
+      tierName: "a",
+      name: "Buyer o1",
+      checkedInAt: null,
+    });
+    await checkIn(db, { ticketId: first, by: "door@example.com", now: NOW + 5000 });
+    expect((await getTicket(db, first))?.checkedInAt).toBe(NOW + 5000);
+    expect((await listOrderTickets(db, "o1")).map((t) => t.seq)).toEqual([0, 1, 2]);
+    expect(await listOrderTickets(db, "none")).toEqual([]);
+  });
+
+  it("returns null for an unknown ticket or one of a refunded order", async () => {
+    addTier("a", 1, 1);
+    const ticketId = await buy("a", "o1");
+    expect(await getTicket(db, "nope")).toBeNull();
+    db.raw.prepare("UPDATE ticket_orders SET status = 'refunded' WHERE id = 'o1'").run();
+    expect(await getTicket(db, ticketId)).toBeNull();
+  });
+});
+
+describe("findPaidOrdersByEmail", () => {
+  it("groups a buyer's paid orders with their tickets, matching the email in any case", async () => {
+    addTier("a", 10, 1);
+    await buyMany("a", "o1", 2);
+    await buyMany("a", "o2", 1);
+    // o3 belongs to someone else; o4 is this buyer's but never paid.
+    await buy("a", "o3");
+    await reserve("a", "o4");
+    db.raw.prepare("UPDATE ticket_orders SET email = 'O1@Example.com' WHERE id = 'o2'").run();
+
+    const orders = await findPaidOrdersByEmail(db, "o1@EXAMPLE.com");
+    expect(orders.map((o) => [o.orderId, o.quantity, o.tickets.map((t) => t.seq)])).toEqual([
+      ["o1", 2, [0, 1]],
+      ["o2", 1, [0]],
+    ]);
+    expect(await findPaidOrdersByEmail(db, "nobody@example.com")).toEqual([]);
+  });
+});
+
+describe("ticket email records", () => {
+  it("counts a connection's recovery requests, matched or not, since a time", async () => {
+    addTier("a", 1, 1);
+    await buy("a", "o1");
+    await recordTicketEmail(db, {
+      orderId: null,
+      kind: "recover",
+      ipHash: "ip",
+      sent: false,
+      now: NOW,
+    });
+    await recordTicketEmail(db, {
+      orderId: "o1",
+      kind: "recover",
+      ipHash: "ip",
+      sent: true,
+      now: NOW + 1,
+    });
+    await recordTicketEmail(db, {
+      orderId: "o1",
+      kind: "purchase",
+      ipHash: null,
+      sent: true,
+      now: NOW + 2,
+    });
+    await recordTicketEmail(db, {
+      orderId: null,
+      kind: "recover",
+      ipHash: "other",
+      sent: false,
+      now: NOW + 3,
+    });
+    expect(await countRecoverRequests(db, "ip", NOW)).toBe(2);
+    expect(await countRecoverRequests(db, "ip", NOW + 1)).toBe(1);
+    expect(await countRecoverRequests(db, "ip", NOW + 2)).toBe(0);
+  });
+
+  it("says whether an order was emailed since a time, counting only accepted sends", async () => {
+    addTier("a", 1, 1);
+    await buy("a", "o1");
+    await recordTicketEmail(db, {
+      orderId: "o1",
+      kind: "recover",
+      ipHash: "ip",
+      sent: false,
+      now: NOW,
+    });
+    expect(await wasOrderEmailedSince(db, "o1", NOW - 1)).toBe(false);
+    await recordTicketEmail(db, {
+      orderId: "o1",
+      kind: "purchase",
+      ipHash: null,
+      sent: true,
+      now: NOW,
+    });
+    expect(await wasOrderEmailedSince(db, "o1", NOW - 1)).toBe(true);
+    expect(await wasOrderEmailedSince(db, "o1", NOW + 1)).toBe(false);
   });
 });
 

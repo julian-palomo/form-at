@@ -30,7 +30,7 @@ pnpm build:web && pnpm start:web   # :4173, real service worker
 | `app/components/` | app-coupled components — anything tied to Zustand, the router, or this app's asset-URL scheme. Generic presentational pieces live in `packages/ui` |
 | `app/hooks/` | `useAudioPlayer` owns all playback logic; `Player.tsx` is layout only |
 | `app/store/` | Zustand slices, composed in `index.ts` |
-| `app/data/` | catalogue, DJs, events, offline-audio IDB access, ticket-sales server functions (`tickets.ts`) |
+| `app/data/` | catalogue, DJs, events, offline-audio IDB access, ticket-sales server functions (`tickets.ts`) and the ticket email (`ticketEmail.ts`) |
 | `app/sw.ts` | the service worker, built by `buildServiceWorker` in `vite.config.ts` |
 | `schema.sql` | D1 schema for the whole project, including tables only `apps/admin` and `apps/rum-archiver` read. **Never apply it with `--file`** — it holds non-idempotent `ALTER`s |
 
@@ -40,21 +40,32 @@ The buy block on an event page (`components/TicketBlock.tsx`) lets the buyer
 pick 1 to 10 tickets (up to what's left in the tier on sale) and starts a
 Stripe Checkout; Stripe returns the buyer to `/tickets/success`, and
 `/api/stripe-webhook` is the only place an order becomes paid. Sales are on
-only where the Pages environment has the D1 binding and all of these secrets,
-so test keys belong in the Preview environment and Production shows no block
-until live keys are set there. `main` only deploys to Production; the manual
-**Deploy web preview** workflow (`.github/workflows/preview.yml`) deploys any
-branch to the `staging` branch alias, which runs in Preview:
+only where the Pages environment has the D1 binding and the first three of
+these secrets, so test keys belong in the Preview environment and Production
+shows no block until live keys are set there. `main` only deploys to
+Production; the manual **Deploy web preview** workflow
+(`.github/workflows/preview.yml`) deploys any branch to the `staging` branch
+alias, which runs in Preview:
 
 | Secret | |
 |---|---|
 | `STRIPE_SECRET_KEY` | creates Checkout Sessions |
 | `STRIPE_WEBHOOK_SECRET` | verifies the webhook's `Stripe-Signature` |
-| `TICKET_SIGNING_SECRET` | HMACs buyer IPs for the hold limit and signs ticket tokens; at least 32 characters, never rotated while tickets are valid |
+| `TICKET_SIGNING_SECRET` | HMACs buyer IPs for the hold limit and signs ticket tokens; at least 32 characters, never rotated while tickets are valid, and the same value on `form-at-admin`, whose scanner verifies the tokens |
+| `RESEND_API_KEY` | sends the ticket emails (`data/ticketEmail.ts`). Without it sales work and every send is recorded as failed in `ticket_email_sends` |
 
 The Stripe webhook endpoint listens for `checkout.session.completed` and
-`checkout.session.expired`. Seat counting and the reasons behind it:
-[`docs/adr/`](../../docs/adr/).
+`checkout.session.expired`; when it creates an order's tickets it emails the
+buyer one `/tickets/<token>` link per ticket, from
+`Form:at <tickets@formatglasgow.com>` (SPF and DKIM for the domain are set
+in Cloudflare DNS). That page (`routes/tickets/$token.tsx`) verifies the
+token, draws the QR (`components/tickets/TicketQr.tsx`, `uqr`, lazy) and
+stores the ticket in `store/ticketsSlice.ts`; `/tickets`
+(`routes/tickets/index.tsx`) lists the device's tickets from the store alone,
+so it works offline, and holds the "recover my tickets" form. `sw.ts` leaves
+every `/tickets/…` navigation to the network; the bare `/tickets` is cached
+like any other page, and its HTML carries no tickets. Seat counting and the
+reasons behind all of this: [`docs/adr/`](../../docs/adr/).
 
 Sub-directory docs: [`scripts/`](scripts/README.md) for every build and ops
 script, [`tests/`](tests/README.md) for test conventions,
