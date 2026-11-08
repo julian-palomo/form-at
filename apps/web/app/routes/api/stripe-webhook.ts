@@ -1,6 +1,12 @@
 import { verifyStripeSignature } from "@form-at/data/stripe";
-import { confirmOrder, expireOrder } from "@form-at/data/tickets";
+import {
+  confirmOrder,
+  expireOrder,
+  getOrderBySession,
+  listOrderTickets,
+} from "@form-at/data/tickets";
 import { createFileRoute } from "@tanstack/react-router";
+import { type TicketEnv, deliverOrderTickets } from "~/data/tickets";
 
 // Stripe's webhook for ticket sales. The ONLY place an order becomes `paid`:
 // never mark one paid anywhere else (CLAUDE.md §1), because only here is the
@@ -12,8 +18,51 @@ import { createFileRoute } from "@tanstack/react-router";
 // 2. Verify the signature. Invalid or missing → 400 and nothing else runs.
 // 3. Write to D1, and only then answer 200. A D1 failure answers 500, so
 //    Stripe retries; confirmOrder and expireOrder are safe to repeat.
+// 4. Email the ticket links, only when this delivery created tickets, so a
+//    replay sends nothing. A failed email never fails the webhook: the order
+//    is paid, the failure is recorded, and the buyer can recover the links.
 
-type WebhookEnv = { DB?: D1Database; STRIPE_WEBHOOK_SECRET?: string };
+type WebhookEnv = TicketEnv;
+
+/** Emails the order's ticket links. Never throws: the payment is confirmed whatever happens here. */
+async function emailTickets(
+  db: D1Database,
+  env: WebhookEnv,
+  sessionId: string,
+  origin: string,
+  nowMs: number,
+  fetchImpl: typeof fetch,
+): Promise<void> {
+  try {
+    const order = await getOrderBySession(db, sessionId);
+    if (!order || order.status !== "paid") return;
+    if (!order.email) {
+      console.error(`[tickets] order ${order.orderId} has no email; nothing sent`);
+      return;
+    }
+    const tickets = await listOrderTickets(db, order.orderId);
+    await deliverOrderTickets(
+      env,
+      {
+        order: {
+          orderId: order.orderId,
+          eventId: order.eventId,
+          tierName: order.tierName,
+          name: order.name,
+          email: order.email,
+          tickets,
+        },
+        origin,
+        kind: "purchase",
+        ipHash: null,
+        now: nowMs,
+      },
+      fetchImpl,
+    );
+  } catch (error) {
+    console.error(`[tickets] email for session ${sessionId} not sent:`, error);
+  }
+}
 
 type SessionObject = {
   id?: unknown;
@@ -34,6 +83,7 @@ export async function handleStripeWebhook(
   request: Request,
   env: WebhookEnv | undefined,
   nowMs: number,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<Response> {
   const rawBody = await request.text();
   const secret = env?.STRIPE_WEBHOOK_SECRET ?? "";
@@ -76,12 +126,15 @@ export async function handleStripeWebhook(
       const details = session?.customer_details ?? null;
       // Paid even if the order's hold lapsed: the buyer paid, so the tier may
       // go one over its cap rather than refuse a paying customer.
-      await confirmOrder(db, {
+      const created = await confirmOrder(db, {
         stripeSessionId: sessionId,
         email: str(details?.email),
         name: str(details?.individual_name) ?? str(details?.name),
         paidAt: nowMs,
       });
+      if (created.length > 0) {
+        await emailTickets(db, env ?? {}, sessionId, new URL(request.url).origin, nowMs, fetchImpl);
+      }
     } else {
       await expireOrder(db, sessionId);
     }

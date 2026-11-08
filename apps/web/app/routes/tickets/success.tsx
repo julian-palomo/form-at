@@ -1,7 +1,10 @@
 import { Button, PageTitle, TerminalRow } from "@form-at/ui";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { PageLayout } from "~/components/PageLayout";
+import { TicketCard } from "~/components/tickets/TicketCard";
 import { type OrderView, fetchOrderStatus } from "~/data/tickets";
+import { useStore } from "~/store";
 import { pageHead } from "~/utils/head";
 import { formatPence } from "~/utils/money";
 
@@ -10,6 +13,8 @@ import { formatPence } from "~/utils/money";
 // The status comes from D1 through a POST server function on every load, and
 // sw.ts keeps `/tickets/` out of its navigation cache, so this page is never
 // served from a cache: a cached "confirming…" would never turn into "you're in".
+// A paid order's tickets are shown here and stored on the device, so the
+// buyer has them in the app before the email arrives.
 
 export const Route = createFileRoute("/tickets/success")({
   validateSearch: (search: Record<string, unknown>): { session_id?: string } =>
@@ -41,6 +46,7 @@ function TicketSuccess() {
 
 function OrderState({ order }: { order: OrderView }) {
   const router = useRouter();
+  useStoreOrderTickets(order);
   const rows: Array<[string, string]> = [
     ["event", order.eventTitle],
     ["date", order.date],
@@ -61,10 +67,39 @@ function OrderState({ order }: { order: OrderView }) {
             <TerminalRow key={label} label={label} value={value} />
           ))}
         </div>
-        <p className="text-sm sm:text-base text-grey leading-relaxed mb-10">
-          stripe has emailed you a receipt. keep it: it's your proof of purchase at the door, with
-          the name you paid under.
-        </p>
+        {order.tickets.length > 0 ? (
+          <>
+            <p className="text-sm sm:text-base text-grey leading-relaxed mb-8">
+              {order.tickets.length > 1
+                ? "your tickets are below and saved on this device. we've emailed you one link per ticket, so you can send one to each friend."
+                : "your ticket is below and saved on this device. we've emailed you its link too."}{" "}
+              <Link to="/tickets" preload="intent" className="hover:text-gold transition-colors">
+                › your tickets
+              </Link>
+            </p>
+            <ul className="space-y-12 mb-10">
+              {order.tickets.map((ticket) => (
+                <li key={ticket.token}>
+                  <TicketCard
+                    ticket={{
+                      token: ticket.token,
+                      eventId: order.eventId,
+                      tierName: order.tierName,
+                      name: order.name,
+                      seq: ticket.seq,
+                      quantity: order.quantity,
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="text-sm sm:text-base text-grey leading-relaxed mb-10">
+            stripe has emailed you a receipt. keep it: it's your proof of purchase at the door, with
+            the name you paid under.
+          </p>
+        )}
       </>
     );
   }
@@ -98,6 +133,26 @@ function OrderState({ order }: { order: OrderView }) {
       </Link>
     </>
   );
+}
+
+/** Stores a paid order's tickets on this device once the client is up. */
+function useStoreOrderTickets(order: OrderView) {
+  const addTickets = useStore((s) => s.addTickets);
+  useEffect(() => {
+    if (order.status !== "paid" || order.tickets.length === 0) return;
+    const storedAt = Date.now();
+    addTickets(
+      order.tickets.map((t) => ({
+        token: t.token,
+        eventId: order.eventId,
+        tierName: order.tierName,
+        name: order.name,
+        seq: t.seq,
+        quantity: order.quantity,
+        storedAt,
+      })),
+    );
+  }, [addTickets, order]);
 }
 
 function UnknownOrder() {

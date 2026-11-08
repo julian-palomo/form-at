@@ -26,4 +26,21 @@ test.describe("tickets", () => {
     await expect(page.getByText(/we can't find this checkout/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /events/i }).first()).toBeVisible();
   });
+
+  test("the tickets page shows an empty device and the recover form", async ({ page }) => {
+    await gotoAndHydrate(page, "/tickets");
+    await expect(page.getByRole("heading", { name: /your tickets/i })).toBeVisible();
+    await expect(page.getByText(/no tickets on this device yet/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /send my tickets/i })).toBeVisible();
+  });
+
+  test("a ticket link that doesn't verify is a 404", async ({ page }) => {
+    await gotoAndHydrate(
+      page,
+      "/tickets/00000000-0000-4000-8000-000000000000.q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c",
+    );
+    await expect(page.getByText(/SIGNAL_LOST/)).toBeVisible();
+    await gotoAndHydrate(page, "/tickets/not-a-token");
+    await expect(page.getByText(/SIGNAL_LOST/)).toBeVisible();
+  });
 });
