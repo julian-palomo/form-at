@@ -28,7 +28,12 @@ function DoorPage() {
           </span>
         )}
       </div>
-      <DoorList orders={data.orders} onRefresh={() => router.invalidate()} />
+      <DoorList
+        orders={data.orders}
+        door={data.door}
+        capacity={data.capacity}
+        onRefresh={() => router.invalidate()}
+      />
     </div>
   );
 }

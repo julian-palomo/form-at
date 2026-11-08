@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DoorList } from "~/components/DoorList";
+import type { DoorSummary } from "~/data/door-sales";
 
 // 23:42 UTC on 5 Dec is 23:42 in Glasgow (GMT in winter).
 const CHECKED_IN_AT = Date.UTC(2026, 11, 5, 23, 42);
@@ -35,6 +36,8 @@ const ORDERS: PaidOrder[] = [
 
 const noRefresh = async () => {};
 
+const DOOR: DoorSummary = { pricePence: 1200, cash: 2, card: 1, expectedCashPence: 2400 };
+
 function rowNames() {
   return within(screen.getByRole("list"))
     .getAllByRole("listitem")
@@ -47,25 +50,25 @@ afterEach(() => {
 
 describe("DoorList", () => {
   it("filters by name, case-insensitive and by substring", async () => {
-    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    render(<DoorList orders={ORDERS} door={DOOR} capacity={300} onRefresh={noRefresh} />);
     await userEvent.type(screen.getByLabelText(/search name or email/i), "REI");
     expect(rowNames()).toEqual(["Callum Reid"]);
   });
 
   it("filters by email", async () => {
-    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    render(<DoorList orders={ORDERS} door={DOOR} capacity={300} onRefresh={noRefresh} />);
     await userEvent.type(screen.getByLabelText(/search name or email/i), "isla@");
     expect(rowNames()).toEqual(["Isla Grant"]);
   });
 
   it("finds an order with no name by its email", async () => {
-    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    render(<DoorList orders={ORDERS} door={DOOR} capacity={300} onRefresh={noRefresh} />);
     await userEvent.type(screen.getByLabelText(/search name or email/i), "no-name");
     expect(rowNames()).toEqual(["no name"]);
   });
 
   it("shows the time on a checked-in row instead of the button", () => {
-    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    render(<DoorList orders={ORDERS} door={DOOR} capacity={300} onRefresh={noRefresh} />);
     const ada = screen.getByText("Ada Morrison").closest("li");
     if (!ada) throw new Error("no row for Ada");
     expect(within(ada).getByText("in at 23:42")).toBeInTheDocument();
@@ -73,16 +76,19 @@ describe("DoorList", () => {
     expect(screen.getAllByRole("button", { name: /check in/i })).toHaveLength(3);
   });
 
-  it("counts paid, in and to come", () => {
-    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
-    expect(screen.getByText("paid").nextSibling?.textContent).toBe("4");
-    expect(screen.getByText("in").nextSibling?.textContent).toBe("1");
+  it("counts paid online, online in and to come, and adds the door to inside", () => {
+    render(<DoorList orders={ORDERS} door={DOOR} capacity={300} onRefresh={noRefresh} />);
+    expect(screen.getByText("paid online").nextSibling?.textContent).toBe("4");
+    expect(screen.getByText("online in").nextSibling?.textContent).toBe("1");
     expect(screen.getByText("to come").nextSibling?.textContent).toBe("3");
+    // 1 online in + 3 at the door; 300 − 4 paid online − 3 at the door.
+    expect(screen.getByText("inside").nextSibling?.textContent).toBe("4 / 300");
+    expect(screen.getByText("room left").nextSibling?.textContent).toBe("293");
   });
 
   it("shows placeholders, never 0, when the list couldn't be read", () => {
-    render(<DoorList orders={null} onRefresh={noRefresh} />);
-    for (const label of ["paid", "in", "to come"]) {
+    render(<DoorList orders={null} door={null} capacity={300} onRefresh={noRefresh} />);
+    for (const label of ["paid online", "online in", "to come", "door cash", "room left"]) {
       expect(screen.getByText(label).nextSibling?.textContent).toBe("—");
     }
     expect(screen.getByText(/couldn't load the door list/i)).toBeInTheDocument();
@@ -98,7 +104,7 @@ describe("DoorList", () => {
         ),
       ),
     );
-    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    render(<DoorList orders={ORDERS} door={DOOR} capacity={300} onRefresh={noRefresh} />);
     const isla = screen.getByText("Isla Grant").closest("li");
     if (!isla) throw new Error("no row for Isla");
 
@@ -106,6 +112,6 @@ describe("DoorList", () => {
 
     expect(await within(isla).findByText(/already used at 23:42/)).toBeInTheDocument();
     expect(within(isla).getByText("by door@example.com")).toBeInTheDocument();
-    expect(screen.getByText("in").nextSibling?.textContent).toBe("2");
+    expect(screen.getByText("online in").nextSibling?.textContent).toBe("2");
   });
 });

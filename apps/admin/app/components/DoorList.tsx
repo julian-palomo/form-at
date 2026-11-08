@@ -1,17 +1,22 @@
 import type { PaidOrder } from "@form-at/data/tickets";
 import { BracketLabel, Button, cn } from "@form-at/ui";
 import { type ReactNode, useState } from "react";
+import type { DoorSummary } from "~/data/door-sales";
 import type { CheckInResponseBody } from "~/routes/api/tickets/check-in";
 import { fmtClock } from "~/utils/fmt";
+import { DoorSales } from "./DoorSales";
 
-// The door: every paid order, a search over name and email, and one tap to let
-// a ticket in. Built for a phone in a dark basement: large tap targets, large
+// The door: the door sales counter, every paid order, a search over name and
+// email, and one tap to let a ticket in. Built for a phone in a dark basement: large tap targets, large
 // text, nothing to scroll sideways. The list is loaded once on the server;
 // search runs here over that list, so it keeps working between refreshes.
 
 interface DoorListProps {
   /** null when the list couldn't be read: counts show `—`, never `0`. */
   orders: PaidOrder[] | null;
+  /** The door sales numbers; null when they couldn't be read. */
+  door: DoorSummary | null;
+  capacity: number;
   onRefresh: () => Promise<void>;
 }
 
@@ -39,7 +44,7 @@ function errorFor(status: number): string {
   return "check-in failed: try again";
 }
 
-export function DoorList({ orders, onRefresh }: DoorListProps) {
+export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
   const [query, setQuery] = useState("");
   const [outcomes, setOutcomes] = useState<Record<string, RowOutcome>>({});
   const [busyTicketId, setBusyTicketId] = useState<string | null>(null);
@@ -98,17 +103,18 @@ export function DoorList({ orders, onRefresh }: DoorListProps) {
 
   return (
     <div className="space-y-5">
-      <dl className="grid grid-cols-3 gap-2 text-center">
+      <DoorSales door={door} capacity={capacity} onlinePaid={paid} onlineIn={checkedIn} />
+
+      <dl className="grid grid-cols-2 gap-2 border-t border-grey/10 pt-5 text-center">
         {(
           [
-            ["paid", paid],
-            ["in", checkedIn],
+            ["paid online", paid],
             ["to come", remaining],
           ] as const
         ).map(([label, value]) => (
-          <div key={label} className="border border-grey/30 py-3">
+          <div key={label} className="border border-grey/30 py-2">
             <dt className="text-xs text-grey tracking-widest">{label}</dt>
-            <dd className="font-display text-3xl text-white">{value ?? "—"}</dd>
+            <dd className="font-display text-2xl text-white">{value ?? "—"}</dd>
           </div>
         ))}
       </dl>

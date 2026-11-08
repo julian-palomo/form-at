@@ -61,7 +61,7 @@ The Workers target isn't free. `apps/web/app/server.ts` is a custom server entry
 |---|---|
 | **Pages** | hosts both apps as separate projects |
 | **Workers** | the SSR runtime — and, separately, a Cron Trigger Worker for the analytics archive, because Pages can't run cron |
-| **D1** (SQLite) | play analytics, the sets catalogue, ticket orders |
+| **D1** (SQLite) | play analytics, the sets catalogue, ticket orders and door sales |
 | **R2** | audio files — free egress, which matters when a single play is 100–220MB |
 | **Access** | edge auth for the admin subdomain, so there's no auth code to write |
 | **GraphQL Analytics API** | zone edge traffic + Web Analytics (RUM) visits, read live into the admin dashboard |
@@ -213,7 +213,7 @@ Cloudflare Access gates `admin.formatglasgow.com` at the edge. The app itself co
 
 The part that's easy to get wrong: **edge gating protects page loads, not individual endpoint calls.** So every mutating endpoint verifies the Access identity server-side anyway, through `apps/admin/app/utils/verifyAccessJwt.ts` — `jose` with `createRemoteJWKSet` against the team domain's `/cdn-cgi/access/certs`, checking `iss`, `aud` and `exp`, reading the `Cf-Access-Jwt-Assertion` header and falling back to the `CF_Authorization` cookie (Cloudflare's docs prefer the header; the cookie isn't guaranteed to be forwarded).
 
-All five mutating endpoints do this: set upload, presign, restore, send-push, ticket check-in. So do the two reads that return buyers' names and emails, the door list and its CSV. There is deliberately no dev-mode bypass.
+All seven mutating endpoints do this: set upload, presign, restore, send-push, ticket check-in, door sales (`+1`/`−1`) and the door price. So do the two reads that return buyers' names and emails, the door list and its CSV. There is deliberately no dev-mode bypass.
 
 ### A 15-second Instagram Story, made on the phone from a 2-hour set
 

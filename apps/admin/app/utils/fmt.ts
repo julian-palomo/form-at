@@ -63,3 +63,8 @@ const clockFormat = new Intl.DateTimeFormat("en-GB", {
 export function fmtClock(ms: number): string {
   return clockFormat.format(ms);
 }
+
+// Pence as pounds with two decimals ("£12.00"), for door prices and cash.
+export function fmtPounds(pence: number): string {
+  return `£${(pence / 100).toFixed(2)}`;
+}

@@ -6,12 +6,19 @@ import { type PaidOrder, listPaidOrders } from "@form-at/data/tickets";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { type AccessEnv, identifyAccessRequest } from "~/utils/accessIdentity";
+import { type DoorSummary, readDoorSummary } from "./door-sales";
 
 export const DOOR_EVENT_ID = "format-004";
+
+/** How many people the venue holds: online buyers plus door sales can't pass it. */
+const VENUE_CAPACITY = 300;
 
 export type DoorPageData = {
   /** null when the list couldn't be read; the page never shows it as empty. */
   orders: PaidOrder[] | null;
+  /** The door sales numbers; null when they couldn't be read. */
+  door: DoorSummary | null;
+  capacity: number;
   isSampleData: boolean;
 };
 
@@ -68,6 +75,13 @@ const SAMPLE_DOOR_ORDERS: PaidOrder[] = [
   },
 ];
 
+const SAMPLE_DOOR_SUMMARY: DoorSummary = {
+  pricePence: 1200,
+  cash: 7,
+  card: 4,
+  expectedCashPence: 8400,
+};
+
 export type DoorOrdersRead =
   | { ok: true; orders: PaidOrder[] }
   | { ok: false; reason: "unauthorized" | "unavailable" };
@@ -97,8 +111,25 @@ export const fetchDoorPageData = createServerFn({ method: "GET" }).handler(
     const cf = (context as unknown as Record<string, unknown>).cloudflare as
       | { env: DoorEnv; hasCloudflareEnv: boolean }
       | undefined;
-    if (!cf?.hasCloudflareEnv) return { orders: SAMPLE_DOOR_ORDERS, isSampleData: true };
+    if (!cf?.hasCloudflareEnv) {
+      return {
+        orders: SAMPLE_DOOR_ORDERS,
+        door: SAMPLE_DOOR_SUMMARY,
+        capacity: VENUE_CAPACITY,
+        isSampleData: true,
+      };
+    }
     const read = await readDoorOrders(getRequest(), cf.env);
-    return { orders: read.ok ? read.orders : null, isSampleData: false };
+    const db = cf.env.DB;
+    if (!read.ok || !db) {
+      return { orders: null, door: null, capacity: VENUE_CAPACITY, isSampleData: false };
+    }
+    let door: DoorSummary | null;
+    try {
+      door = await readDoorSummary(db, DOOR_EVENT_ID);
+    } catch {
+      door = null;
+    }
+    return { orders: read.orders, door, capacity: VENUE_CAPACITY, isSampleData: false };
   },
 );

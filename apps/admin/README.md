@@ -20,15 +20,15 @@ pnpm -C apps/admin diagnose-visits   # why is the visits card empty?
 No Cloudflare credentials needed locally — with no D1 binding present the
 dashboard renders fixtures from `app/data/sample-stats.ts` and shows a
 `sample data` marker, so a wrong number can't be mistaken for a real one. `/door`
-does the same with made-up buyers from `app/data/door.ts`.
+does the same with made-up buyers and door sales from `app/data/door.ts`.
 
 ## Layout
 
 | Path | |
 |---|---|
 | `app/routes/dashboard.tsx` | the dashboard; tab content is in `components/*Tab.tsx` |
-| `app/routes/door.tsx` | the door list: paid orders of the event on sale, search by name or email, one-tap check-in, a refresh button and a CSV download. List and search in `components/DoorList.tsx`, the loader in `data/door.ts` |
-| `app/routes/api/` | the five mutating endpoints — upload, presign, restore, send-push, `tickets/check-in` — and `tickets/door-csv` |
+| `app/routes/door.tsx` | the door: inside against the venue capacity, room left, `+1 cash` / `+1 card` / `−1` for people paying at the door, the door price and the cash expected in the box; then the paid online orders, search by name or email, one-tap check-in, a refresh button and a CSV download. Counter in `components/DoorSales.tsx` (queries in `data/door-sales.ts`), list and search in `components/DoorList.tsx`, the loader in `data/door.ts` |
+| `app/routes/api/` | the seven mutating endpoints — upload, presign, restore, send-push, `tickets/check-in`, `tickets/door-sales` (`+1` and `−1`), `tickets/door-price` — and `tickets/door-csv` |
 | `app/data/` | aggregate D1 queries, Cloudflare Analytics reads, the RUM archive reader |
 | `app/utils/hostGuard.ts` | the `*.pages.dev` guard — see below |
 | `app/utils/verifyAccessJwt.ts` | server-side Access identity verification |
@@ -45,7 +45,7 @@ makes the dashboard public.
 
 **Every mutating endpoint calls `verifyAccessJwt`.** Access gates *page loads* at
 the edge, not individual endpoint calls, so each writer verifies the Access
-identity server-side. All five do. There is deliberately no dev-mode bypass, and
+identity server-side. All seven do. There is deliberately no dev-mode bypass, and
 only the read-only aggregate queries may skip it. The door list's loader and the
 CSV aren't aggregates (every buyer's name and email), so they verify it too,
 through `utils/accessIdentity.ts`.
