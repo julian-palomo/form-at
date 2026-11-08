@@ -42,6 +42,7 @@ that conflicts with isolated test rendering.
 - `apps/web/tests/e2e/` — Playwright, four projects (chromium, webkit, mobile-chrome, mobile-safari). Mocks `*.mp3` with a silent fixture.
 - `apps/web/tests/setup.ts` — jest-dom matchers + `HTMLMediaElement` stubs (jsdom doesn't decode audio).
 - `playwright.config.ts` uses `workers: 1` — Vite's dev server races on parallel route loads.
+- Each app's `playwright.config.ts` boots its own `vite dev` on a port hashed from the checkout path (`tests/e2e/_port.ts`; web 4200–4699, admin 4700–5199, `E2E_PORT` overrides), with `--strictPort` and `reuseExistingServer: false`. Two worktrees can run e2e at once, and a suite never attaches to a `pnpm dev` someone started by hand. Keep the two ranges apart and off 5173/5174/4173/4174.
 - Click handlers calling `playTrack` rely on the module-level `audioEl` ref in `playerSlice.ts`; register a fake element with `registerAudioElement()` in `beforeEach`.
 - Conventions and how to add one: `apps/web/tests/README.md`.
 - `packages/ui/vitest.setup.ts` wires jest-dom and calls `installDialogPolyfill()` — the polyfill itself is `packages/ui/src/domPolyfills.ts` (jsdom implements no `HTMLDialogElement.showModal()`).
