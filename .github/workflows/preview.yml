@@ -11,6 +11,10 @@ name: Deploy web preview
 on:
   workflow_dispatch:
 
+# The job only checks out code; Cloudflare access comes from its own secrets.
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-web-preview
   cancel-in-progress: true
