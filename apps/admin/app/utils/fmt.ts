@@ -64,7 +64,23 @@ export function fmtClock(ms: number): string {
   return clockFormat.format(ms);
 }
 
-// Pence as pounds with two decimals ("£12.00"), for door prices and cash.
+// Pence as pounds with two decimals ("£12.00"), for prices, cash and takings.
 export function fmtPounds(pence: number): string {
   return `£${(pence / 100).toFixed(2)}`;
+}
+
+// "Sat 14 Nov 21:05" in Glasgow, for when an order was placed. Intl puts a
+// comma before the time; dropping it keeps the line short on a phone.
+const dateTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Europe/London",
+});
+
+export function fmtDateTime(ms: number): string {
+  return dateTimeFormat.format(ms).replace(",", "");
 }

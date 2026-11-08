@@ -13,6 +13,7 @@ import {
   getOrderBySession,
   getTicket,
   listOrderTickets,
+  listOrders,
   listPaidOrders,
   recordTicketEmail,
   releaseUnstartedOrder,
@@ -601,5 +602,69 @@ describe("listPaidOrders with several tickets", () => {
       { ticketId: ids[1], seq: 1, quantity: 3, amountPence: 2400, checkedInAt: NOW + 50 },
       { ticketId: ids[2], seq: 2, quantity: 3, amountPence: 2400, checkedInAt: null },
     ]);
+  });
+});
+
+describe("listOrders", () => {
+  it("lists every order once whatever its status, newest first, with tickets in", async () => {
+    addTier("a", 10, 1, 800);
+    const ids = await buyMany("a", "o1", 3);
+    await checkIn(db, { ticketId: ids[0] as string, by: "door@example.com", now: NOW + 50 });
+    await checkIn(db, { ticketId: ids[2] as string, by: "door@example.com", now: NOW + 60 });
+    await reserve("a", "o2", NOW + 10, "ip-o2", 2);
+    await reserve("a", "o3", NOW + 20);
+    await attachStripeSession(db, "o3", "cs_o3");
+    await expireOrder(db, "cs_o3");
+
+    const orders = await listOrders(db, EVENT);
+
+    expect(
+      orders.map((o) => ({
+        orderId: o.orderId,
+        status: o.status,
+        quantity: o.quantity,
+        amountPence: o.amountPence,
+        createdAt: o.createdAt,
+        ticketsIn: o.ticketsIn,
+      })),
+    ).toEqual([
+      {
+        orderId: "o3",
+        status: "expired",
+        quantity: 1,
+        amountPence: 800,
+        createdAt: NOW + 20,
+        ticketsIn: 0,
+      },
+      {
+        orderId: "o2",
+        status: "pending",
+        quantity: 2,
+        amountPence: 1600,
+        createdAt: NOW + 10,
+        ticketsIn: 0,
+      },
+      {
+        orderId: "o1",
+        status: "paid",
+        quantity: 3,
+        amountPence: 2400,
+        createdAt: NOW,
+        ticketsIn: 2,
+      },
+    ]);
+    expect(orders[2]).toMatchObject({
+      name: "Buyer o1",
+      email: "o1@example.com",
+      tierName: "a",
+      paidAt: NOW + 1000,
+      expiresAt: NOW + HOLD,
+    });
+  });
+
+  it("lists only the event's own orders", async () => {
+    addTier("a", 10, 1);
+    await buy("a", "o1");
+    expect(await listOrders(db, "other-event")).toEqual([]);
   });
 });
