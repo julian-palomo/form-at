@@ -661,3 +661,86 @@ CREATE TABLE IF NOT EXISTS rum_capture_runs (
 -- Recent failures, newest first:
 --   SELECT captured_at, since, until, reason FROM rum_capture_runs
 --   WHERE ok = 0 ORDER BY captured_at DESC LIMIT 20;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Ticket sales: ticket_tiers, ticket_orders, tickets.
+--
+-- Every query lives in `packages/data/src/tickets.ts`, shared by apps/web
+-- (checkout + Stripe webhook) and apps/admin (door list). Decision record:
+-- `docs/adr/2026-11-08-stripe-checkout-and-signed-ticket-token.md`.
+--
+-- CAPACITY IS COUNTED, NOT CACHED. There is deliberately no `sold` or
+-- `reserved` column on `ticket_tiers`. A seat is taken by an order that is
+-- `paid`, or `pending` with `expires_at` still in the future; every check
+-- counts those rows. Counters would need a second write per order, and a
+-- Stripe webhook delivered twice, or a Worker dying between two writes, would
+-- leave them wrong with nothing to repair them. Never add counters back.
+--
+-- Applied to the remote database, seed included. Do NOT use `--file` (see
+-- `ALTER TABLE plays ADD COLUMN is_offline` above). A fresh database runs each
+-- statement on its own, in this order, because each table references the one
+-- before it:
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS ticket_tiers (id TEXT PRIMARY KEY, event_id TEXT NOT NULL, name TEXT NOT NULL, price_pence INTEGER NOT NULL, cap INTEGER NOT NULL, sort_order INTEGER NOT NULL)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS ticket_orders (id TEXT PRIMARY KEY, stripe_session_id TEXT UNIQUE, event_id TEXT NOT NULL, tier_id TEXT NOT NULL REFERENCES ticket_tiers(id), email TEXT, name TEXT, amount_pence INTEGER NOT NULL, status TEXT NOT NULL CHECK (status IN ('pending','paid','expired','refunded')), created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, paid_at INTEGER)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_ticket_orders_tier_status ON ticket_orders (tier_id, status)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE REFERENCES ticket_orders(id), checked_in_at INTEGER, checked_in_by TEXT)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "INSERT OR IGNORE INTO ticket_tiers (id, event_id, name, price_pence, cap, sort_order) VALUES ('format-004-early', 'format-004', 'early', 800, 15, 1), ('format-004-second', 'format-004', 'second', 1000, 15, 2), ('format-004-general', 'format-004', 'general', 1200, 120, 3)"
+-- Verify:
+-- npx wrangler d1 execute form-at-analytics --remote --command "PRAGMA table_info(ticket_orders)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "SELECT id, price_pence, cap, sort_order FROM ticket_tiers ORDER BY sort_order"
+
+-- One row per price tier. Tiers sell in `sort_order`: the active tier is the
+-- first one with a free seat, so the next price opens by itself when a tier
+-- fills. `id` is global across events, so it carries the event id as a prefix.
+CREATE TABLE IF NOT EXISTS ticket_tiers (
+  id          TEXT    PRIMARY KEY,  -- '<event_id>-<name>', e.g. 'format-004-early'
+  event_id    TEXT    NOT NULL,     -- matches `id` in packages/data/src/events.ts
+  name        TEXT    NOT NULL,
+  price_pence INTEGER NOT NULL,     -- what the buyer pays, in pence
+  cap         INTEGER NOT NULL,     -- seats in this tier
+  sort_order  INTEGER NOT NULL      -- 1 sells first
+);
+
+-- One row per checkout attempt. Created `pending` by `reserveSeat` before the
+-- Stripe Checkout Session exists, so `stripe_session_id` arrives second
+-- (`attachStripeSession`). Only the verified Stripe webhook moves an order out
+-- of `pending`; never mark an order `paid` anywhere else.
+--
+-- `expires_at` is when an unpaid order stops holding its seat. The checkout
+-- sets it a few minutes after the Stripe session's own expiry, so a seat is
+-- never handed to someone else while its first buyer can still pay. It also
+-- frees the seat when the `checkout.session.expired` webhook never arrives.
+CREATE TABLE IF NOT EXISTS ticket_orders (
+  id                TEXT    PRIMARY KEY,  -- crypto.randomUUID()
+  stripe_session_id TEXT    UNIQUE,       -- NULL until the Checkout Session is created
+  event_id          TEXT    NOT NULL,
+  tier_id           TEXT    NOT NULL REFERENCES ticket_tiers(id),
+  email             TEXT,                 -- from Stripe, on payment
+  name              TEXT,                 -- from Stripe, on payment
+  amount_pence      INTEGER NOT NULL,     -- the tier's price when the seat was reserved
+  status            TEXT    NOT NULL CHECK (status IN ('pending','paid','expired','refunded')),
+  created_at        INTEGER NOT NULL,     -- unix ms
+  expires_at        INTEGER NOT NULL,     -- unix ms
+  paid_at           INTEGER               -- unix ms
+);
+
+-- Every reservation counts a tier's orders by status.
+CREATE INDEX IF NOT EXISTS idx_ticket_orders_tier_status ON ticket_orders (tier_id, status);
+
+-- One ticket per order (`order_id` is UNIQUE), created in the same batch that
+-- marks the order paid. The QR token is derived from `id` with
+-- `signTicketToken` (packages/data/src/ticketToken.ts), never stored.
+CREATE TABLE IF NOT EXISTS tickets (
+  id            TEXT    PRIMARY KEY,  -- crypto.randomUUID()
+  order_id      TEXT    NOT NULL UNIQUE REFERENCES ticket_orders(id),
+  checked_in_at INTEGER,              -- unix ms; NULL until scanned at the door
+  checked_in_by TEXT                  -- the Access email of whoever checked it in
+);
+
+-- Form:at 004's tiers: 15 at £8, 15 at £10, then 120 at £12 (150 online).
+-- INSERT OR IGNORE, so re-running it never changes a tier. To change a price
+-- or a cap later, run an explicit UPDATE.
+INSERT OR IGNORE INTO ticket_tiers (id, event_id, name, price_pence, cap, sort_order) VALUES
+  ('format-004-early', 'format-004', 'early', 800, 15, 1),
+  ('format-004-second', 'format-004', 'second', 1000, 15, 2),
+  ('format-004-general', 'format-004', 'general', 1200, 120, 3);

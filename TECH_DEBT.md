@@ -8,7 +8,7 @@ Each item is written to be picked up cold — no conversation context required.
 
 - **Launch blockers:** none open (19 resolved 2026-07-06 — audio on cdn.formatglasgow.com)
 - **Open:** 8, 12, 13, 15, 22, 23 (verification debt — a cleared 2026-08-18 except the dropped-connection case, b and c still fully unexercised), 27 (offline click-through has no e2e coverage; needs a production-build Playwright project), 30 (Instagram Story device test — Android fully verified: the full 15s story shares directly, publishes whole, A/V sync and framing intact after Instagram's re-encode; iOS waits on the same device access as 12/23b), 31 (a re-upload at the same R2 URL never reaches a saved offline copy; fixed with versioned upload paths, CDN rules applied, Julz 003 moved; only the manual Android re-upload test remains), 32 (Firefox on Android treated as non-installable until a device shows its home-screen shortcut runs standalone), 33 (home must not scroll on an iPhone when it fits — checked in Chromium emulation only; waits on the same iPhone access as 12/23b/30), 34 (the two `.inputValidator()`s are identity casts), 35 (three mutating admin routes have no auth-rejection test), 36 (admin's CSP has no test), 37 (four silent-failure invariants guarded only by an agent hook, not CI)
-- **Deferred, recorded rather than done:** 24 (DJ/event data model still static while sets are in D1), 25 (no-cross-app-imports unenforced), 26 (`PWA_PROGRESS.md` too large to be readable)
+- **Deferred, recorded rather than done:** 24 (DJ/event data model still static while sets are in D1), 25 (no-cross-app-imports unenforced), 26 (`PWA_PROGRESS.md` too large to be readable), 38 (ticket sales: one ticket per order, refunds by hand in Stripe + D1)
 - **Invalid:** 1 (2026-07-22 — premise was wrong, not stale: both flagged functions are load-bearing behind a live multi-provider calendar picker; do not delete, see item for the full re-verification)
 - **Deferred:** 14 (Brandon Lee Vear `.mp3.mp3` — R2 has no rename op, cosmetic, no re-visit condition); 16 (orphan artwork prune, coupled — waits for the deferred manage-offline-sets view, real trigger is ~10-15 sets in the catalogue, not a calendar date; see item for why that arrives faster now)
 - **Resolved:** 2 (2026-07-22 — knip.json config + parallel CI job; see item for a correction to its own original plan), 3 (2026-07-23 — `__root.tsx` split into `fontCSS.ts` / `HydrateStore.tsx` / `rootHead.ts`), 4 (2026-07-23 — beacon queue + Background Sync, with a page-side fallback for Safari/Firefox), 6 (2026-06-28, `10811a4`), 7 (2026-07-02, `d2bbc36` — offline.html redesign, stamped during the 2026-07-06 docs cleanup), 9 (2026-06-29, `e2b5f57`), 10 (2026-06-29, `da90a12`), 11 (fully resolved 2026-07-01 — initial fix `718ead3` 2026-06-27, same-track branch closed 2026-07-01), 17 (2026-07-02 — gate proven intact via SW-preview experiments; observed bytes were HTTP cache / element buffer, not IDB; silent-blocked-tap toast fixed), 18 (2026-07-02 — not reproducible on current build; all three offline nav modes verified against the SW preview), 5 (absorbed into 19's verification — CORS re-checked on the custom domain 2026-07-06: preflight GET/HEAD + range, ACAO *, Content-Length exposed), 19 (2026-07-06 — audio on cdn.formatglasgow.com, host centralized in `@form-at/data/sets` since item 21's sweep, IDB force-re-download migration in reconcileFromIdb), 20 (2026-07-31 — superseded by the admin dashboard shipping and then moving to its own app, apps/admin), 21 (2026-08-04 — import sweep to `@form-at/data`, four shim files reduced to two deleted + two trimmed to their genuinely-local code)
@@ -1634,6 +1634,20 @@ Each of these is cheap as a vitest that reads the source file:
 Admin's CSP is item 36. **When these exist,** drop the matching cases from the
 hook.
 
+## 38. Ticket sales: one ticket per order, no refunds from the admin
+
+**Status: deferred on purpose.** The ticket tables (`apps/web/schema.sql`,
+queries in `packages/data/src/tickets.ts`) hold one ticket per order:
+`tickets.order_id` is UNIQUE. That keeps capacity and the door to one row per
+person. A buyer who wants two tickets checks out twice.
+
+There is also no refund path in code. A refund is done in the Stripe dashboard,
+and the order is then set to `refunded` by hand in D1, which frees the seat and
+makes `checkIn` reject the ticket. Nothing sets that status automatically.
+
+**Re-visit when** a night sells enough that people ask for group checkouts, or
+refunds become more than a handful per event.
+
 ---
 
-_Last updated: 2026-10-22_
+_Last updated: 2026-11-08_
