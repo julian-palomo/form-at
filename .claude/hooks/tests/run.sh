@@ -89,7 +89,8 @@ fixture() { # relative-path
   echo "$scratch/inv/$1"
 }
 mutate() { # file sed-expression
-  sed -i '' -e "$2" "$1"
+  # Through a temp file: BSD and GNU sed disagree on `-i`'s argument.
+  sed -e "$2" "$1" >"$1.tmp" && mv "$1.tmp" "$1"
 }
 check_invariant() { # relative-path sed-expression label
   local f
@@ -119,6 +120,15 @@ printf 'export const a = "x\xc2\xa0y";\n' >"$nbsp_file"
 report block "$(invariant_verdict "$nbsp_file")" "check-invariants: literal non-breaking space"
 printf 'export const a = "x\\u00a0y";\n' >"$nbsp_file"
 report pass "$(invariant_verdict "$nbsp_file")" "check-invariants: escaped non-breaking space"
+
+# Stripe-shaped keys, built at runtime so no sample key sits in this file.
+key_file="$scratch/inv/apps/web/app/utils/stripe.ts"
+printf 'const key = "sk_%s_%s";\n' live "$(printf 'A%.0s' $(seq 1 24))" >"$key_file"
+report block "$(invariant_verdict "$key_file")" "check-invariants: Stripe secret key"
+printf 'const secret = "whsec_%s";\n' "$(printf 'B%.0s' $(seq 1 32))" >"$key_file"
+report block "$(invariant_verdict "$key_file")" "check-invariants: Stripe webhook secret"
+printf 'const key = env.STRIPE_SECRET_KEY; // sk_live_ or sk_test_\n' >"$key_file"
+report pass "$(invariant_verdict "$key_file")" "check-invariants: a key prefix without a key body"
 
 # ── format-on-edit ────────────────────────────────────────────────────────
 format_verdict() { # file

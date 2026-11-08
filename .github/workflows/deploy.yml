@@ -58,7 +58,10 @@ jobs:
       - run: pnpm --filter @form-at/data test
 
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned to 24.04: `ubuntu-latest` is 26.04, and Playwright's install-deps
+    # has no package list for it ("does not support chromium on ubuntu26.04").
+    # Move back to `ubuntu-latest` once Playwright lists 26.04 as supported.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4

@@ -32,8 +32,10 @@ current_branch() { git -C "$repo_dir" rev-parse --abbrev-ref HEAD 2>/dev/null; }
 tracked_changes() { git -C "$repo_dir" status --porcelain --untracked-files=no 2>/dev/null; }
 
 # Attribution lines are never allowed in a commit or PR: authorship is the
-# repo owner's own git config.
-attribution_re='co-authored-by|generated with|noreply@anthropic\.com|claude\.com/claude-code|🤖'
+# repo owner's own git config. "generated with" must start a word, so
+# "regenerated with" passes. Cloud sessions also try to append a
+# `claude.ai/code/session` link; that is attribution too.
+attribution_re='co-authored-by|(^|[^a-zA-Z])generated with|noreply@anthropic\.com|claude\.com/claude-code|claude\.ai/code/session|🤖'
 if printf '%s' "$cmd" | grep -qE '(^|[;&| ])(git( +-C +[^ ]+)* +commit|gh +pr +(create|edit))'; then
   if printf '%s' "$cmd" | grep -qiE "$attribution_re"; then
     block "the commit/PR text contains an attribution line (Co-Authored-By, \"Generated with\", Anthropic/Claude Code). Commits are authored as the repo owner with no attribution."
@@ -58,6 +60,10 @@ while IFS= read -r raw; do
   # git -c user.* overrides authorship for one command.
   if printf '%s' "$seg" | grep -qE '^git( +-C +[^ ]+)* +-c +user\.'; then
     block "git -c user.* changes commit authorship. Commits use the repo owner's git config as it is."
+  fi
+  # So do the environment variables git reads before its config.
+  if printf '%s' "$seg" | grep -qE '(^|[[:space:]])GIT_(AUTHOR|COMMITTER)_(NAME|EMAIL)='; then
+    block "GIT_AUTHOR_* / GIT_COMMITTER_* change commit authorship. Commits use the repo owner's git config as it is."
   fi
   # Normalise `git -C <dir> <sub>` to `git <sub>`.
   g=$(printf '%s' "$seg" | sed -E 's/^git( +-C +[^ ]+)+ /git /')
@@ -94,6 +100,9 @@ while IFS= read -r raw; do
   if printf '%s' "$g" | grep -qE '^git +reset( |$).*--hard'; then
     block "git reset --hard discards work."
   fi
+  if printf '%s' "$g" | grep -qE '^git +rebase( |$)'; then
+    block "git rebase rewrites history. Merge origin/main into the branch instead."
+  fi
   if printf '%s' "$g" | grep -qE '^git +clean( |$).*-[a-zA-Z]*f'; then
     block "git clean -f deletes untracked files, which may be someone's work in progress."
   fi
@@ -114,7 +123,10 @@ while IFS= read -r raw; do
     block "apps/web/app/server.ts and apps/admin/app/server.ts make D1 reachable; never delete them."
   fi
   if printf '%s' "$seg" | grep -qE '^gh +pr +merge( |$)'; then
-    block "PRs are merged by the repo owner, never by an agent."
+    block "PRs are merged by the repo owner, never by an agent (and never with auto-merge)."
+  fi
+  if printf '%s' "$seg" | grep -qE '^gh +api( |$).*/pulls/[0-9]+/merge|^gh +api( |$).*enablePullRequestAutoMerge'; then
+    block "merging or enabling auto-merge through the API is still merging. The repo owner merges."
   fi
 
   if printf '%s' "$seg" | grep -qE 'wrangler( |$)'; then

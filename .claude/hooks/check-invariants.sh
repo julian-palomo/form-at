@@ -76,6 +76,17 @@ case "$file" in
     ;;
 esac
 
+# Nothing shaped like a Stripe key in any file: secret or restricted keys
+# (sk_/rk_ + live/test), webhook signing secrets (whsec_). Keys live only in
+# Pages secrets, set by the repo owner. The message gives line numbers, never
+# the match, so a real key doesn't land in the transcript. Never write a
+# sample key in this file: it is checked too.
+stripe_key_re='(sk|rk)_(live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}'
+if LC_ALL=C grep -nIE -- "$stripe_key_re" "$file" >/dev/null; then
+  lines=$(LC_ALL=C grep -nIE -- "$stripe_key_re" "$file" | cut -d: -f1 | tr '\n' ' ')
+  fail "line(s) ${lines}look like a Stripe key or webhook secret. Keys live only in Pages secrets, never in a file. Remove it, and if it was real, ask the repo owner to roll it."
+fi
+
 # No literal non-breaking or zero-width characters in source (write the escape).
 case "$file" in
   *.ts | *.tsx | *.js | *.mjs | *.css | *.sql)

@@ -68,6 +68,26 @@ jobs:
       - run: pnpm -C apps/admin exec vite build
       - run: pnpm knip
 
+  # ── Claude Code hook tests ───────────────────────────────────────────────
+  # The hooks in .claude/hooks/ enforce CLAUDE.md §1-§2 on every agent
+  # session; a broken hook fails silently there. format-on-edit needs Biome
+  # from node_modules, hence the install.
+  hooks:
+    name: Hook tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: bash .claude/hooks/tests/run.sh
+
   # ── Unit tests (vitest, jsdom) ───────────────────────────────────────────
   unit:
     name: Unit tests
@@ -161,7 +181,10 @@ jobs:
   # ── E2E tests (playwright, chromium + webkit) ─────────────────────────────
   e2e:
     name: E2E tests
-    runs-on: ubuntu-latest
+    # Pinned to 24.04: `ubuntu-latest` is 26.04, and Playwright's install-deps
+    # has no package list for it ("does not support chromium on ubuntu26.04").
+    # Move back to `ubuntu-latest` once Playwright lists 26.04 as supported.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4

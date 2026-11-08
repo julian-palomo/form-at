@@ -85,8 +85,9 @@ You commit, push and open the PR; the repo owner reviews and squash-merges.
 - **Stage by name** (`git add <path>`). Never `git add -A`, `--all` or `.`. Never
   touch, stage or delete files that aren't part of the task, untracked ones
   included; report strays instead.
-- **Never** `git stash`, `commit --amend`, force-push, `reset --hard`, or rewrite
-  history. Two branches at once → `git worktree`, not stash.
+- **Never** `git stash`, `commit --amend`, `rebase`, force-push, `reset --hard`,
+  or rewrite history; to catch up with `main`, `git merge origin/main`. Two
+  branches at once → `git worktree`, not stash.
 - **Never merge** (`gh pr merge`). Before building on something said to be merged,
   check `gh pr view`.
 - Commit messages: short, lowercase, imperative ("add …", "fix …").
