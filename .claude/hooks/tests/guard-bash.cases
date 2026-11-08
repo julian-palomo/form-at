@@ -34,6 +34,9 @@ pass  | pnpm dump-diff
 pass  | pnpm build-storybook
 pass  | cat apps/web/app/server.ts
 pass  | echo "git stash is forbidden" > /dev/null
+pass  | git commit -m "add the regenerated with-cache snapshot"
+pass  | git merge origin/main
+pass  | gh api repos/julian-palomo/form-at/pulls/92
 
 block | git stash
 block | git stash list
@@ -56,6 +59,10 @@ block | git push origin +feat/x
 block | git push origin main
 block | git push origin HEAD:main
 block | git reset --hard origin/main
+block | git rebase origin/main
+block | git rebase -i HEAD~3
+block | GIT_AUTHOR_NAME=Other git commit -m "x"
+block | GIT_COMMITTER_EMAIL=other@example.com git commit -m "x"
 block | git clean -fd
 block | git checkout main
 block | git switch main
@@ -64,6 +71,11 @@ block | rm -f apps/admin/app/server.ts
 block | git rm apps/admin/app/server.ts
 block | npx wrangler d1 execute form-at-analytics --remote --file apps/web/schema.sql
 block | gh pr merge 92 --squash
+block | gh pr merge 92 --auto --squash
+block | gh api -X PUT repos/julian-palomo/form-at/pulls/92/merge
+block | gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {pullRequestId: "x"}) { clientMutationId } }'
+block | git commit -m "fix x" -m "Claude-Session: https://claude.ai/code/session_abc"
+block | gh pr create --title "x" --body "https://claude.ai/code/session_abc"
 block | git commit -m "fix x" -m "Co-Authored-By: Claude <noreply@anthropic.com>"
 block | git commit -m "add x 🤖 Generated with Claude Code"
 block | gh pr create --title "x" --body "Generated with [Claude Code](https://claude.com/claude-code)"
