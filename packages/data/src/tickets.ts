@@ -1,5 +1,5 @@
 // Ticket sales queries, shared by apps/web (checkout and the Stripe webhook)
-// and apps/admin (the door list). Tables and their reasoning: the ticket block
+// and apps/admin (the door list and the sales list). Tables and their reasoning: the ticket block
 // at the end of apps/web/schema.sql. Decision record:
 // docs/adr/2026-11-08-stripe-checkout-and-signed-ticket-token.md.
 //
