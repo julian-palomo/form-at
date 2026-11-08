@@ -10,9 +10,10 @@ import {
   stampedDurationsOnly,
   stampedPeaksOnly,
 } from "./playerSlice";
+import { type StoredTicket, type TicketsSlice, createTicketsSlice } from "./ticketsSlice";
 import { type UiSlice, createUiSlice } from "./uiSlice";
 
-export type AppStore = PlayerSlice & UiSlice & OfflineSlice & CatalogueSlice;
+export type AppStore = PlayerSlice & UiSlice & OfflineSlice & CatalogueSlice & TicketsSlice;
 
 export const useStore = create<AppStore>()(
   persist(
@@ -21,6 +22,7 @@ export const useStore = create<AppStore>()(
       ...createUiSlice(...a),
       ...createOfflineSlice(...a),
       ...createCatalogueSlice(...a),
+      ...createTicketsSlice(...a),
     }),
     {
       name: "format-player",
@@ -58,6 +60,9 @@ export const useStore = create<AppStore>()(
         // Deliberately NOT `catalogueReady`/`catalogueConfirmed`
         // — both must start false every session; see catalogueSlice.ts.
         catalogueSets: state.catalogueSets,
+        // The tickets this device holds, by token. Plain strings and numbers
+        // only; the event itself is looked up from `getEvent` at render time.
+        tickets: state.tickets,
       }),
       merge: (persisted, current) => {
         // zustand calls merge(undefined, current) when the storage key does
@@ -78,6 +83,7 @@ export const useStore = create<AppStore>()(
           offlineSets,
           hasRequestedPersist,
           catalogueSets: persistedCatalogueSets,
+          tickets,
         } = persisted as {
           nowPlayingId: string | null;
           positions: Record<string, number>;
@@ -89,6 +95,7 @@ export const useStore = create<AppStore>()(
           offlineSets?: Record<string, OfflineSetState>;
           hasRequestedPersist?: boolean;
           catalogueSets?: MusicSet[];
+          tickets?: Record<string, StoredTicket>;
         };
         // Falls back to `current.catalogueSets` (the bare snapshot default
         // from createCatalogueSlice) for a payload persisted before this
@@ -119,6 +126,7 @@ export const useStore = create<AppStore>()(
           pushOptInDismissed: pushOptInDismissed ?? false,
           offlineSets: offlineSets ?? {},
           hasRequestedPersist: hasRequestedPersist ?? false,
+          tickets: tickets ?? {},
         };
       },
       // Rehydration failures are otherwise fully silent — persist catches
