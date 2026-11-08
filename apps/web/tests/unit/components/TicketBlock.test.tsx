@@ -116,7 +116,7 @@ describe("TicketBlock", () => {
     await user.click(more);
     await user.click(more);
     expect(more).toBeDisabled();
-    expect(screen.getByText("= £36")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /buy 3 tickets · £36/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /buy 3 tickets/i }));
     expect(startCheckout).toHaveBeenCalledWith({ data: { eventId: EVENT, quantity: 3 } });

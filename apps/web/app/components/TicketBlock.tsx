@@ -73,19 +73,19 @@ export function TicketBlock({ eventId }: { eventId: string }) {
             {active.name} · {formatPence(active.pricePence)}
           </p>
           {active.maxQuantity > 1 && (
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center justify-center gap-6 mb-4">
               <Button
                 variant="secondary"
                 aria-label="one ticket fewer"
                 onClick={() => setQuantity(count - 1)}
                 disabled={busy || count <= 1}
-                className={cn(count <= 1 && "opacity-40 cursor-not-allowed")}
+                className={cn("text-base", count <= 1 && "opacity-40 cursor-not-allowed")}
               >
                 −
               </Button>
               <output
                 aria-live="polite"
-                className="font-display text-2xl text-white min-w-8 text-center"
+                className="font-display text-3xl text-white min-w-10 text-center"
               >
                 {count}
               </output>
@@ -94,19 +94,28 @@ export function TicketBlock({ eventId }: { eventId: string }) {
                 aria-label="one ticket more"
                 onClick={() => setQuantity(count + 1)}
                 disabled={busy || count >= active.maxQuantity}
-                className={cn(count >= active.maxQuantity && "opacity-40 cursor-not-allowed")}
+                className={cn(
+                  "text-base",
+                  count >= active.maxQuantity && "opacity-40 cursor-not-allowed",
+                )}
               >
                 +
               </Button>
-              {count > 1 && (
-                <span className="text-sm text-grey">
-                  = {formatPence(active.pricePence * count)}
-                </span>
-              )}
             </div>
           )}
-          <Button variant="secondary" onClick={buy} disabled={busy}>
-            {busy ? "opening checkout…" : count > 1 ? `buy ${count} tickets` : "buy ticket"}
+          {/* The page's main call to action: full width, like the home page's play button. */}
+          <Button
+            variant="primary"
+            onClick={buy}
+            disabled={busy}
+            className={cn("w-full sm:text-base", busy && "opacity-60 cursor-wait")}
+          >
+            <span className="text-gold">›</span>
+            <span>
+              {busy
+                ? "opening checkout…"
+                : `${count > 1 ? `buy ${count} tickets` : "buy ticket"} · ${formatPence(active.pricePence * count)}`}
+            </span>
           </Button>
         </>
       ) : (
