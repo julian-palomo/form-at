@@ -400,12 +400,27 @@ describe("checkIn", () => {
     expect(await checkIn(db, { ticketId, by: "door@example.com", now: NOW + 10 })).toEqual({
       status: "checked_in",
       checkedInAt: NOW + 10,
+      name: "Buyer o1",
+      seq: 0,
+      quantity: 1,
     });
     expect(await checkIn(db, { ticketId, by: "other@example.com", now: NOW + 20 })).toEqual({
       status: "already_used",
       checkedInAt: NOW + 10,
       checkedInBy: "door@example.com",
+      name: "Buyer o1",
+      seq: 0,
+      quantity: 1,
     });
+  });
+
+  it("says which ticket of the order it let in", async () => {
+    addTier("a", 10, 1);
+    const ids = await buyMany("a", "o1", 3);
+
+    expect(
+      await checkIn(db, { ticketId: ids[1] as string, by: "door@example.com", now: NOW }),
+    ).toMatchObject({ status: "checked_in", name: "Buyer o1", seq: 1, quantity: 3 });
   });
 
   it("rejects an unknown ticket", async () => {
