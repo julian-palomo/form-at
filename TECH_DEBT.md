@@ -1645,6 +1645,10 @@ There is also no refund path in code. A refund is done in the Stripe dashboard,
 and the order is then set to `refunded` by hand in D1, which frees the seat and
 makes `checkIn` reject the ticket. Nothing sets that status automatically.
 
+A check-in can't be undone from the door (`apps/admin/app/routes/door.tsx`). A
+wrong tap is cleared by hand in D1, by setting that ticket's `checked_in_at` and
+`checked_in_by` back to NULL.
+
 **Re-visit when** a night sells enough that people ask for group checkouts, or
 refunds become more than a handful per event.
 

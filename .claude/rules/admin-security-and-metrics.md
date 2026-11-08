@@ -26,10 +26,13 @@ asserts the 404.
 
 Cloudflare Access gates page loads at the edge, not individual endpoint calls, so
 each writer verifies the Access identity server-side via
-`apps/admin/app/utils/verifyAccessJwt.ts`. All four current ones do —
+`apps/admin/app/utils/verifyAccessJwt.ts`. All five current ones do —
 `routes/api/sets.ts` (upload), `routes/api/sets-presign.ts` (R2 presigned URLs),
-`routes/api/sets/restore.ts`, `routes/api/send-push.ts`. Add nothing that skips
-it; only the read-only aggregate queries may. There is deliberately no dev-mode
+`routes/api/sets/restore.ts`, `routes/api/send-push.ts`,
+`routes/api/tickets/check-in.ts`. Add nothing that skips it; only the read-only
+aggregate queries may. Reads of buyer data aren't aggregates: the `/door` loader
+(`data/door.ts`) and `routes/api/tickets/door-csv.ts` verify it too, through
+`utils/accessIdentity.ts`. There is deliberately no dev-mode
 bypass. Paired with the host guard — Access covers neither the `*.pages.dev`
 hostname nor individual endpoint calls.
 
