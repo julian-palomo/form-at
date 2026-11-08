@@ -1594,7 +1594,8 @@ otherwise; add a unit test per function for a non-string input.
 
 **Status: open, not blocking.** `verifyAccessJwt` itself is tested
 (`apps/admin/tests/unit/utils/verifyAccessJwt.test.ts`), and
-`api-sets-presign.test.ts` and `api-tickets-check-in.test.ts` exercise it at the
+`api-sets-presign.test.ts`, `api-tickets-check-in.test.ts` and
+`api-tickets-door-sales.test.ts` (sales, undo and price) exercise it at the
 route. `api-sets.test.ts`, `api-sets-restore.test.ts` and `api-send-push.test.ts`
 contain no request without a valid `Cf-Access-Jwt-Assertion` and no 401/403
 assertion. Those three routes call it today (read, not run); a refactor that
@@ -1648,6 +1649,12 @@ makes `checkIn` reject the ticket. Nothing sets that status automatically.
 A check-in can't be undone from the door (`apps/admin/app/routes/door.tsx`). A
 wrong tap is cleared by hand in D1, by setting that ticket's `checked_in_at` and
 `checked_in_by` back to NULL.
+
+Door sales (`+1 cash` / `+1 card`) need signal. A tap that doesn't reach the
+server shows "not saved, tap again" and leaves the counts as they were; nothing
+queues it on the phone, so it is lost unless someone taps again. Sales recorded
+while trying the page before the night are real rows: clear them with
+`DELETE FROM door_sales WHERE event_id = 'format-004'` before doors open.
 
 **Re-visit when** a night sells enough that people ask for group checkouts, or
 refunds become more than a handful per event.
