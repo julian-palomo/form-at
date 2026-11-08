@@ -66,12 +66,18 @@ export function TicketBlock({ eventId }: { eventId: string }) {
 
   return (
     <div className="mb-10">
-      <PageTitle>tickets</PageTitle>
-      {active ? (
-        <>
-          <p className="text-sm sm:text-base text-grey leading-relaxed mb-4">
+      {/* The tier and its price sit on the heading's line, so the block is
+          heading, stepper, button: three rows, not four. */}
+      <div className="flex items-baseline justify-between gap-4 mb-6">
+        <PageTitle className="mb-0">tickets</PageTitle>
+        {active && (
+          <p className="text-sm sm:text-base text-grey leading-relaxed">
             {active.name} · {formatPence(active.pricePence)}
           </p>
+        )}
+      </div>
+      {active ? (
+        <>
           {active.maxQuantity > 1 && (
             <div className="flex items-center justify-center gap-6 mb-4">
               <Button
