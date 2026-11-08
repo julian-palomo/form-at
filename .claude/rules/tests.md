@@ -47,3 +47,4 @@ that conflicts with isolated test rendering.
 - Conventions and how to add one: `apps/web/tests/README.md`.
 - `packages/ui/vitest.setup.ts` wires jest-dom and calls `installDialogPolyfill()` — the polyfill itself is `packages/ui/src/domPolyfills.ts` (jsdom implements no `HTMLDialogElement.showModal()`).
 - `packages/ui` interaction tests: see the two traps in `design-system-and-styling.md`.
+- `packages/data/tests/helpers/sqliteD1.ts` — a `D1Database` stand-in on real SQLite (`node:sqlite`), built from `apps/web/schema.sql`. Use it for queries whose correctness rests on the SQL itself (conditional WHEREs, `batch`), where a hand-written fake would only return what the test expects. It runs statements one after another, so it proves the WHERE clauses, not D1's concurrency.

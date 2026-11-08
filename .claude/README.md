@@ -28,7 +28,7 @@ code.claude.com/docs.
 | `rules/offline-and-service-worker.md` | Purge flag pair, no skipWaiting, never rebuild the audio Request, SW build | Touching sw.ts, offlineSlice, catalogueSlice, offline-audio, vite.config | Automatic |
 | `rules/web-app.md` | Server entry, player, nav, analytics, beacon CSP, store slices, API route shape | Touching apps/web server, routes, store, hooks, player | Automatic |
 | `rules/admin-security-and-metrics.md` | Host guard, verifyAccessJwt, CSP, null-not-0, metric naming, RUM, markers | Touching anything in apps/admin | Automatic |
-| `rules/data-r2-d1.md` | schema.sql migrations, versioned R2 keys, catalogue, peaks, push, RUM archive | Touching packages/data, schema.sql, scripts, rum-archiver | Automatic |
+| `rules/data-r2-d1.md` | schema.sql migrations, versioned R2 keys, catalogue, peaks, push, RUM archive, tickets | Touching packages/data, schema.sql, scripts, rum-archiver | Automatic |
 | `rules/design-system-and-styling.md` | Tokens, edges, bracket labels, @source, readable JSX, packages/ui traps | Touching packages/ui or any app .tsx/.css | Automatic |
 | `rules/react-and-typescript.md` | React Compiler, effects, Zustand, TS, TanStack Start, errors, tests | Touching any .ts/.tsx | Automatic |
 | `rules/stories.md` | Story video, DJ Story image, lazy imports, Story product decisions | Touching story/djStory code or ShareModal | Automatic |
