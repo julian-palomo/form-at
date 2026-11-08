@@ -683,7 +683,7 @@ CREATE TABLE IF NOT EXISTS rum_capture_runs (
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS ticket_orders (id TEXT PRIMARY KEY, stripe_session_id TEXT UNIQUE, event_id TEXT NOT NULL, tier_id TEXT NOT NULL REFERENCES ticket_tiers(id), email TEXT, name TEXT, amount_pence INTEGER NOT NULL, status TEXT NOT NULL CHECK (status IN ('pending','paid','expired','refunded')), created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, paid_at INTEGER)"
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_ticket_orders_tier_status ON ticket_orders (tier_id, status)"
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE REFERENCES ticket_orders(id), checked_in_at INTEGER, checked_in_by TEXT)"
--- npx wrangler d1 execute form-at-analytics --remote --command "INSERT OR IGNORE INTO ticket_tiers (id, event_id, name, price_pence, cap, sort_order) VALUES ('format-004-early', 'format-004', 'early', 800, 15, 1), ('format-004-second', 'format-004', 'second', 1000, 15, 2), ('format-004-general', 'format-004', 'general', 1200, 140, 3)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "INSERT OR IGNORE INTO ticket_tiers (id, event_id, name, price_pence, cap, sort_order) VALUES ('format-004-early', 'format-004', 'early', 800, 15, 1), ('format-004-second', 'format-004', 'second', 1000, 15, 2), ('format-004-general', 'format-004', 'general', 1200, 120, 3)"
 -- Verify:
 -- npx wrangler d1 execute form-at-analytics --remote --command "PRAGMA table_info(ticket_orders)"
 -- npx wrangler d1 execute form-at-analytics --remote --command "SELECT id, price_pence, cap, sort_order FROM ticket_tiers ORDER BY sort_order"
@@ -736,10 +736,10 @@ CREATE TABLE IF NOT EXISTS tickets (
   checked_in_by TEXT                  -- the Access email of whoever checked it in
 );
 
--- Form:at 004's tiers: 15 at £8, 15 at £10, then 140 at £12 (170 online).
+-- Form:at 004's tiers: 15 at £8, 15 at £10, then 120 at £12 (150 online).
 -- INSERT OR IGNORE, so re-running it never changes a tier. To change a price
 -- or a cap later, run an explicit UPDATE.
 INSERT OR IGNORE INTO ticket_tiers (id, event_id, name, price_pence, cap, sort_order) VALUES
   ('format-004-early', 'format-004', 'early', 800, 15, 1),
   ('format-004-second', 'format-004', 'second', 1000, 15, 2),
-  ('format-004-general', 'format-004', 'general', 1200, 140, 3);
+  ('format-004-general', 'format-004', 'general', 1200, 120, 3);

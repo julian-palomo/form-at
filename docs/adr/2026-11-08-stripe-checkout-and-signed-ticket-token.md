@@ -7,8 +7,8 @@
 
 Form:at 004 (Sat 5 Dec 2026, Stereo) is the first night we sell tickets
 ourselves, from `formatglasgow.com/events/format-004`, instead of only through
-Resident Advisor. Tiers sell in order: 15 at £8, 15 at £10, then 140 at £12,
-170 online in all. The collective runs the door, possibly with no signal in
+Resident Advisor. Tiers sell in order: 15 at £8, 15 at £10, then 120 at £12,
+150 online in all. The collective runs the door, possibly with no signal in
 the basement.
 
 What's true now and shapes the choice:
@@ -49,7 +49,7 @@ What's true now and shapes the choice:
   Nov 2026, 004 sells on RA.
 - **A custom card form (Stripe Elements or Payment Element).** More control of
   the page, but more code and more of the PCI surface on us, for no gain at
-  170 tickets.
+  150 tickets.
 - **`sold`/`reserved` counters on the tier.** Cheaper to read, but each order
   then needs two writes that must stay in step. A duplicate webhook or a Worker
   dying between them leaves the counter wrong, with nothing to repair it.

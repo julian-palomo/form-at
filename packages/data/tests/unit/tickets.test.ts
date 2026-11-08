@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 
 describe("schema seed", () => {
-  it("seeds Form:at 004's three tiers: 15 at £8, 15 at £10, 140 at £12", () => {
+  it("seeds Form:at 004's three tiers: 15 at £8, 15 at £10, 120 at £12", () => {
     const rows = db.raw
       .prepare(
         "SELECT id, price_pence, cap, sort_order FROM ticket_tiers WHERE event_id = 'format-004' ORDER BY sort_order",
@@ -62,7 +62,7 @@ describe("schema seed", () => {
     expect(rows.map((r) => ({ ...r }))).toEqual([
       { id: "format-004-early", price_pence: 800, cap: 15, sort_order: 1 },
       { id: "format-004-second", price_pence: 1000, cap: 15, sort_order: 2 },
-      { id: "format-004-general", price_pence: 1200, cap: 140, sort_order: 3 },
+      { id: "format-004-general", price_pence: 1200, cap: 120, sort_order: 3 },
     ]);
   });
 });
