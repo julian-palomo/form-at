@@ -60,7 +60,12 @@ function checkout(fetchImpl: typeof fetch, ip = "203.0.113.7") {
 
 beforeEach(() => {
   db = createTestD1();
-  env = { DB: db, STRIPE_SECRET_KEY: "test-key", TICKET_SIGNING_SECRET: "test-signing" };
+  env = {
+    DB: db,
+    STRIPE_SECRET_KEY: "test-key",
+    STRIPE_WEBHOOK_SECRET: "test-webhook",
+    TICKET_SIGNING_SECRET: "test-signing",
+  };
 });
 
 describe("startCheckoutFor", () => {
@@ -123,7 +128,12 @@ describe("startCheckoutFor", () => {
     const fetchImpl = stripeOk() as unknown as typeof fetch;
     env = { DB: db, STRIPE_SECRET_KEY: "test-key" };
     expect(await checkout(fetchImpl)).toEqual({ status: "unavailable" });
-    env = { DB: db, STRIPE_SECRET_KEY: "test-key", TICKET_SIGNING_SECRET: "test-signing" };
+    env = {
+      DB: db,
+      STRIPE_SECRET_KEY: "test-key",
+      STRIPE_WEBHOOK_SECRET: "test-webhook",
+      TICKET_SIGNING_SECRET: "test-signing",
+    };
     expect(
       await startCheckoutFor(
         env,

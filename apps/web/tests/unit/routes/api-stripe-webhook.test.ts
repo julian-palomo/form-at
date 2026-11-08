@@ -115,6 +115,11 @@ describe("handleStripeWebhook", () => {
     expect(ticketCount()).toBe(0);
   });
 
+  it("answers 400 for a signed body that isn't a JSON object", async () => {
+    expect((await post("null")).status).toBe(400);
+    expect((await post("not json")).status).toBe(400);
+  });
+
   it("answers 200 and ignores event types it doesn't handle", async () => {
     const res = await post(stripeEvent("payment_intent.succeeded", "cs_test_1"));
     expect(res.status).toBe(200);

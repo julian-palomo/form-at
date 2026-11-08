@@ -31,6 +31,7 @@ export function TicketBlock({ eventId }: { eventId: string }) {
       .then((result) => {
         if (!cancelled) setAvailability(result);
       })
+      // A failed load leaves the block hidden, the same as sales being off.
       .catch(() => {});
     return () => {
       cancelled = true;

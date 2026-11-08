@@ -4,8 +4,8 @@ import { gotoAndHydrate } from "./_helpers";
 // The e2e server runs outside Cloudflare, with no D1 binding and no Stripe
 // secrets, so ticket sales are off: these check that the pages still render
 // and that nothing for sale appears where sales aren't configured. The sales
-// flow itself is covered by the unit tests and by a test-mode purchase on the
-// Preview deployment.
+// flow itself is covered by the unit tests; a real payment needs a test-mode
+// purchase on a Preview deployment with the Stripe secrets set.
 
 test.describe("tickets", () => {
   test("an upcoming event page renders without a buy block when sales are off", async ({

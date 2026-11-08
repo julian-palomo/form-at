@@ -751,8 +751,10 @@ INSERT OR IGNORE INTO ticket_tiers (id, event_id, name, price_pence, cap, sort_o
 -- (packages/data/src/tickets.ts), so one person or script can't park a whole
 -- tier of 15 in abandoned checkouts. NULL on orders created before it existed.
 --
--- Applied to the remote database. Same non-idempotent limitation as every
--- ALTER in this file — do not re-run:
+-- The column is applied to the remote database (`PRAGMA table_info(ticket_orders)`
+-- lists `ip_hash`); the ALTER has the same non-idempotent limitation as every
+-- ALTER in this file — do not re-run it. The index is `IF NOT EXISTS`, so
+-- running it again is harmless:
 -- npx wrangler d1 execute form-at-analytics --remote --command "ALTER TABLE ticket_orders ADD COLUMN ip_hash TEXT"
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_ticket_orders_ip_status ON ticket_orders (ip_hash, status)"
 ALTER TABLE ticket_orders ADD COLUMN ip_hash TEXT;

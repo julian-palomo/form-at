@@ -30,19 +30,29 @@ const HOLD_SLACK_MS = 5 * 60 * 1000;
 export type TicketEnv = {
   DB?: D1Database;
   STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
   TICKET_SIGNING_SECRET?: string;
 };
 
 type SalesConfig = { db: D1Database; stripeKey: string; signingSecret: string };
 
 /**
- * Sales are on only where the DB and both secrets exist. That gate is what
+ * Sales are on only where the DB and all three secrets exist. The webhook
+ * secret isn't used here, but without it no payment is ever confirmed, so a
+ * buyer could pay for an order that stays pending. The gate is also what
  * keeps a test-mode checkout off formatglasgow.com: test keys go in the
  * Pages Preview environment, and Production stays without a buy block until
  * live keys are set there.
  */
 function salesConfig(env: TicketEnv | undefined): SalesConfig | null {
-  if (!env?.DB || !env.STRIPE_SECRET_KEY || !env.TICKET_SIGNING_SECRET) return null;
+  if (
+    !env?.DB ||
+    !env.STRIPE_SECRET_KEY ||
+    !env.STRIPE_WEBHOOK_SECRET ||
+    !env.TICKET_SIGNING_SECRET
+  ) {
+    return null;
+  }
   return { db: env.DB, stripeKey: env.STRIPE_SECRET_KEY, signingSecret: env.TICKET_SIGNING_SECRET };
 }
 

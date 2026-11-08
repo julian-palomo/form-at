@@ -44,12 +44,16 @@ export async function handleStripeWebhook(
   );
   if (!valid) return new Response("Invalid signature", { status: 400 });
 
-  let event: { type?: unknown; data?: { object?: SessionObject } };
+  let parsed: unknown;
   try {
-    event = JSON.parse(rawBody);
+    parsed = JSON.parse(rawBody);
   } catch {
     return new Response("Invalid body", { status: 400 });
   }
+  if (typeof parsed !== "object" || parsed === null) {
+    return new Response("Invalid body", { status: 400 });
+  }
+  const event = parsed as { type?: unknown; data?: { object?: SessionObject } | null };
 
   const type = event.type;
   if (type !== "checkout.session.completed" && type !== "checkout.session.expired") {
