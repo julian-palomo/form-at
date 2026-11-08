@@ -21,6 +21,18 @@ test.describe("admin door list", () => {
     );
   });
 
+  test("the door counter adds door sales to the online check-ins", async ({ page }) => {
+    await gotoAndHydrate(page, "/door");
+    const counter = page.getByRole("region", { name: "door sales" });
+    // Sample data: 1 online in + 7 cash + 4 card; 300 − 4 paid online − 11.
+    await expect(counter).toContainText("12 / 300");
+    await expect(counter.getByText("285", { exact: true })).toBeVisible();
+    await expect(counter.getByText("£84.00")).toBeVisible();
+    await expect(counter.getByRole("button", { name: /\+1 cash/ })).toBeVisible();
+    await expect(counter.getByRole("button", { name: /\+1 card/ })).toBeVisible();
+    await expect(counter.getByRole("button", { name: /−1/ })).toBeVisible();
+  });
+
   test("the search filters by name and by email", async ({ page }) => {
     await gotoAndHydrate(page, "/door");
     const search = page.getByLabel(/search name or email/i);
