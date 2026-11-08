@@ -1,0 +1,40 @@
+name: Deploy web preview
+
+# Builds apps/web from the branch picked in "Use workflow from" and deploys it
+# to the `staging` branch of the form-at-web Pages project. A non-production
+# branch deploy runs in the Pages Preview environment, with its own secrets
+# and bindings, which is where Stripe test keys live: production keeps no
+# buy block until live keys are set there. The `staging` alias stays the same
+# across runs, so the Stripe test webhook points at one URL.
+#
+# Manual only, and no test jobs: nothing here touches production.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web-preview
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+  PNPM_VERSION: 9.15.0
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    # The web build regenerates the sets snapshot from live D1, so it needs
+    # the Cloudflare credentials as much as the deploy step does.
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:web
+      - run: pnpm exec wrangler pages deploy apps/web/dist/client --project-name=form-at-web --branch=staging

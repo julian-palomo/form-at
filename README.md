@@ -282,6 +282,7 @@ The dashboard's `edge_traffic` card needs a `CF_ANALYTICS_TOKEN` Pages secret on
 
 - **`ci.yml`** on every push and PR: `static` (Biome + `tsc`), `knip`, `unit`, `chromatic`, `e2e` (Chromium + WebKit).
 - **`deploy.yml`** on push to `main`: re-runs `static`/`unit`/`e2e`, then `deploy`, `deploy-admin` and `deploy-rum-archiver` only if all pass, so a direct push to `main` can't skip the suite. Also manually triggerable via `workflow_dispatch`.
+- **`preview.yml`**, manual only: deploys `apps/web` from any branch to the `staging` branch of the Pages project, which runs in the Preview environment. That's where ticket sales are tested with Stripe test keys.
 
 One CI detail worth knowing before editing it: the two workflows install *different* Playwright browser sets and their caches are keyed on browser set + lockfile hash. They must never share a cache key — first-writer-wins poisoning cost a debugging session already.
 

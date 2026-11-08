@@ -27,4 +27,5 @@ its own key too.
 - **`deploy.yml`** on push to `main`, plus manual `workflow_dispatch`.
   - Re-runs `static`/`unit`/`e2e`, then `deploy` and `deploy-admin` only if all pass, so a direct push to `main` can't skip the suite.
   - Deliberately **not** `chromatic`, which stays PR-only to avoid roughly doubling snapshot quota.
+- **`preview.yml`**, manual `workflow_dispatch` only: builds `apps/web` from the chosen branch and deploys it with `--branch=staging`, which uses the Pages Preview environment (Stripe test keys live there). No test jobs, and its own concurrency group, so it never queues behind or cancels a production deploy.
 - **Secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CHROMATIC_PROJECT_TOKEN`.
