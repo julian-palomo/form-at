@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { createHmac } from "node:crypto";
 import { attachStripeSession, reserveSeat } from "@form-at/data/tickets";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleStripeWebhook } from "~/routes/api/stripe-webhook";
 import { type TestD1, createTestD1 } from "../../../../../packages/data/tests/helpers/sqliteD1";
 
@@ -38,14 +38,36 @@ function stripeEvent(type: string, sessionId: string, paymentStatus = "paid") {
   });
 }
 
-function post(body: string, signature: string | null = sign(body)) {
+/** The full sales env, with Resend answering through `resend`; without it no email is attempted. */
+function post(
+  body: string,
+  signature: string | null = sign(body),
+  resend?: ReturnType<typeof vi.fn>,
+) {
   const headers = new Headers({ "Content-Type": "application/json" });
   if (signature) headers.set("Stripe-Signature", signature);
   return handleStripeWebhook(
     new Request("https://example.com/api/stripe-webhook", { method: "POST", headers, body }),
-    { DB: db, STRIPE_WEBHOOK_SECRET: SECRET },
+    {
+      DB: db,
+      STRIPE_WEBHOOK_SECRET: SECRET,
+      STRIPE_SECRET_KEY: "sk_test_x",
+      TICKET_SIGNING_SECRET: "test-signing-secret-of-at-least-32-chars",
+      ...(resend ? { RESEND_API_KEY: "re_test" } : {}),
+    },
     NOW_MS,
+    (resend ?? vi.fn()) as unknown as typeof fetch,
   );
+}
+
+function resendOk() {
+  return vi.fn(async () => new Response(JSON.stringify({ id: "email_1" }), { status: 200 }));
+}
+
+function emailSends() {
+  return db.raw
+    .prepare("SELECT kind, sent FROM ticket_email_sends ORDER BY created_at")
+    .all() as Array<{ kind: string; sent: number }>;
 }
 
 function order(sessionId: string) {
@@ -153,6 +175,42 @@ describe("handleStripeWebhook", () => {
     const res = await post(stripeEvent("payment_intent.succeeded", "cs_test_1"));
     expect(res.status).toBe(200);
     expect(order("cs_test_1").status).toBe("pending");
+  });
+
+  it("emails the buyer's ticket links once, on the delivery that created the tickets", async () => {
+    await reserveSeat(db, {
+      tierId: TIER,
+      orderId: "order-3",
+      quantity: 3,
+      ipHash: "ip-3",
+      now: NOW_MS,
+      expiresAt: NOW_MS + 36 * 60 * 1000,
+    });
+    await attachStripeSession(db, "order-3", "cs_test_3");
+    const body = stripeEvent("checkout.session.completed", "cs_test_3");
+    const resend = resendOk();
+    expect((await post(body, sign(body), resend)).status).toBe(200);
+    expect((await post(body, sign(body), resend)).status).toBe(200);
+    expect(resend).toHaveBeenCalledTimes(1);
+    const init = (resend.mock.calls[0] as unknown[])[1] as RequestInit;
+    const sent = JSON.parse(String(init.body)) as { to: string[]; subject: string; text: string };
+    expect(sent.to).toEqual(["buyer@example.com"]);
+    expect(sent.subject).toBe("your tickets for Form:at 004");
+    expect(
+      sent.text.match(/https:\/\/example\.com\/tickets\/[a-z0-9-]+\.[A-Za-z0-9_-]{43}/g),
+    ).toHaveLength(3);
+    expect(emailSends()).toEqual([{ kind: "purchase", sent: 1 }]);
+  });
+
+  it("keeps the order paid and answers 200 when the email can't be sent", async () => {
+    const body = stripeEvent("checkout.session.completed", "cs_test_1");
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    const resend = vi.fn(async () => new Response("down", { status: 500 }));
+    expect((await post(body, sign(body), resend)).status).toBe(200);
+    quiet.mockRestore();
+    expect(order("cs_test_1").status).toBe("paid");
+    expect(ticketCount()).toBe(1);
+    expect(emailSends()).toEqual([{ kind: "purchase", sent: 0 }]);
   });
 
   it("answers 500 without a database, so Stripe retries", async () => {

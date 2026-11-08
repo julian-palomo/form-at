@@ -813,9 +813,9 @@ INSERT OR IGNORE INTO door_settings (event_id, price_pence) VALUES ('format-004'
 -- shape, copy every ticket as seat 0, drop the old table, rename. Nothing
 -- references `tickets`, so the drop is safe.
 --
--- Not yet applied to the remote database. Apply these statements one at a
--- time, in this order. None of them is idempotent; don't re-run them on a
--- database that has already been migrated:
+-- Applied to the remote database. For a new database, apply these statements
+-- one at a time, in this order. None of them is idempotent; don't re-run them
+-- on a database that has already been migrated:
 -- npx wrangler d1 execute form-at-analytics --remote --command "ALTER TABLE ticket_orders ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1"
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE tickets_new (id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES ticket_orders(id), seq INTEGER NOT NULL DEFAULT 0, checked_in_at INTEGER, checked_in_by TEXT, UNIQUE (order_id, seq))"
 -- npx wrangler d1 execute form-at-analytics --remote --command "INSERT INTO tickets_new (id, order_id, seq, checked_in_at, checked_in_by) SELECT id, order_id, 0, checked_in_at, checked_in_by FROM tickets"
@@ -837,3 +837,29 @@ INSERT INTO tickets_new (id, order_id, seq, checked_in_at, checked_in_by)
   SELECT id, order_id, 0, checked_in_at, checked_in_by FROM tickets;
 DROP TABLE tickets;
 ALTER TABLE tickets_new RENAME TO tickets;
+
+-- Ticket emails. One row per email the site tried to send about an order:
+-- `purchase` from the Stripe webhook when the order's tickets are created,
+-- `recover` from the "recover my tickets" form on /tickets. `sent` is whether
+-- the provider accepted it; a 0 is the failure the admin's resend repairs.
+-- A `recover` row is written for every request, matched or not (`order_id`
+-- NULL when no paid order has that email), so the per-connection limit counts
+-- attempts rather than hits and the form can't be used to probe which emails
+-- bought. Queries in packages/data/src/tickets.ts.
+--
+-- Not yet applied to the remote database. Apply one statement at a time:
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS ticket_email_sends (id TEXT PRIMARY KEY, order_id TEXT REFERENCES ticket_orders(id), kind TEXT NOT NULL CHECK (kind IN ('purchase','recover')), ip_hash TEXT, sent INTEGER NOT NULL, created_at INTEGER NOT NULL)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_ticket_email_sends_ip_created ON ticket_email_sends (ip_hash, created_at)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_ticket_email_sends_order_created ON ticket_email_sends (order_id, created_at)"
+-- Verify:
+-- npx wrangler d1 execute form-at-analytics --remote --command "PRAGMA table_info(ticket_email_sends)"
+CREATE TABLE IF NOT EXISTS ticket_email_sends (
+  id         TEXT    PRIMARY KEY,  -- crypto.randomUUID()
+  order_id   TEXT    REFERENCES ticket_orders(id),  -- NULL: a recovery request that matched no paid order
+  kind       TEXT    NOT NULL CHECK (kind IN ('purchase','recover')),
+  ip_hash    TEXT,                 -- the requester's HMAC'd IP for `recover`; NULL for `purchase`
+  sent       INTEGER NOT NULL,     -- 1 when the provider accepted the email, else 0
+  created_at INTEGER NOT NULL      -- unix ms
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_email_sends_ip_created ON ticket_email_sends (ip_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_ticket_email_sends_order_created ON ticket_email_sends (order_id, created_at);

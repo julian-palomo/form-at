@@ -1,10 +1,17 @@
+import { signTicketToken } from "@form-at/data/ticketToken";
 // @vitest-environment node
+import { confirmOrder, listOrderTickets } from "@form-at/data/tickets";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CHECKOUT_SESSION_SECONDS,
+  MAX_RECOVER_REQUESTS_PER_HOUR,
+  RECOVER_COOLDOWN_MS,
   type TicketEnv,
+  deliverOrderTickets,
   loadAvailability,
   loadOrderView,
+  loadTicketPage,
+  recoverTicketsFor,
   startCheckoutFor,
 } from "~/data/tickets";
 import { type TestD1, createTestD1 } from "../../../../../packages/data/tests/helpers/sqliteD1";
@@ -15,6 +22,8 @@ import { type TestD1, createTestD1 } from "../../../../../packages/data/tests/he
 const EVENT = "format-004";
 const NOW = 1_800_000_000_000;
 const ORIGIN = "https://preview.example.pages.dev";
+/** 32+ characters, as signTicketToken requires. */
+const SIGNING_SECRET = "test-signing-secret-of-at-least-32-chars";
 
 let db: TestD1;
 let env: TicketEnv;
@@ -68,7 +77,7 @@ beforeEach(() => {
     DB: db,
     STRIPE_SECRET_KEY: "test-key",
     STRIPE_WEBHOOK_SECRET: "test-webhook",
-    TICKET_SIGNING_SECRET: "test-signing",
+    TICKET_SIGNING_SECRET: SIGNING_SECRET,
   };
 });
 
@@ -213,5 +222,220 @@ describe("loadOrderView", () => {
       name: null,
     });
     expect(await loadOrderView(env, "cs_test_unknown")).toBeNull();
+  });
+
+  it("returns a paid order's tickets as signed tokens, in seat order", async () => {
+    await pay("cs_test_paid", 2);
+    const view = await loadOrderView(env, "cs_test_paid");
+    const tickets = await listOrderTickets(db, view ? await orderIdOf("cs_test_paid") : "");
+    expect(view?.tickets).toEqual([
+      { token: await signTicketToken(tickets[0]?.id ?? "", SIGNING_SECRET), seq: 0 },
+      { token: await signTicketToken(tickets[1]?.id ?? "", SIGNING_SECRET), seq: 1 },
+    ]);
+  });
+});
+
+/** A checkout paid through the real queries, the way the webhook does it. Returns the ticket ids. */
+async function pay(sessionId: string, quantity = 1, email = "buyer@example.com") {
+  const result = await checkout(
+    stripeOk(sessionId) as unknown as typeof fetch,
+    undefined,
+    quantity,
+  );
+  if (result.status !== "redirect") throw new Error(`checkout answered ${result.status}`);
+  return confirmOrder(db, { stripeSessionId: sessionId, email, name: "Ada Buyer", paidAt: NOW });
+}
+
+async function orderIdOf(sessionId: string): Promise<string> {
+  const row = db.raw
+    .prepare("SELECT id FROM ticket_orders WHERE stripe_session_id = ?")
+    .get(sessionId) as { id: string };
+  return row.id;
+}
+
+function emailSends() {
+  return db.raw
+    .prepare("SELECT order_id, kind, ip_hash, sent FROM ticket_email_sends ORDER BY created_at")
+    .all() as Array<{
+    order_id: string | null;
+    kind: string;
+    ip_hash: string | null;
+    sent: number;
+  }>;
+}
+
+/** A Resend that accepts everything, recording each request's body. */
+function resendOk() {
+  return vi.fn(async () => new Response(JSON.stringify({ id: "email_1" }), { status: 200 }));
+}
+
+function resendDown() {
+  return vi.fn(async () => new Response(JSON.stringify({ message: "nope" }), { status: 500 }));
+}
+
+function sentTo(fetchImpl: ReturnType<typeof vi.fn>): string[] {
+  return fetchImpl.mock.calls.map((call) => {
+    const init = (call as unknown[])[1] as RequestInit;
+    return (JSON.parse(String(init.body)) as { to: string[] }).to[0] ?? "";
+  });
+}
+
+describe("loadTicketPage", () => {
+  it("shows a paid ticket for a valid token, with its place in the order", async () => {
+    const [, second] = await pay("cs_test_page", 3);
+    const token = await signTicketToken(second ?? "", SIGNING_SECRET);
+    expect(await loadTicketPage(env, token)).toEqual({
+      token,
+      eventId: EVENT,
+      eventTitle: "Form:at 004",
+      date: "2026-12-05",
+      venue: "Stereo, City Centre, Glasgow",
+      runtime: "23:00 — 04:00",
+      tierName: "early",
+      name: "Ada Buyer",
+      seq: 1,
+      quantity: 3,
+      checkedInAt: null,
+    });
+  });
+
+  it("answers null for a forged token, an unknown ticket, or when sales are off", async () => {
+    const [ticketId] = await pay("cs_test_page");
+    const token = await signTicketToken(ticketId ?? "", SIGNING_SECRET);
+    expect(await loadTicketPage(env, `${token.slice(0, -1)}A`)).toBeNull();
+    expect(
+      await loadTicketPage(env, await signTicketToken("not-a-ticket", SIGNING_SECRET)),
+    ).toBeNull();
+    expect(await loadTicketPage({ ...env, STRIPE_SECRET_KEY: undefined }, token)).toBeNull();
+  });
+});
+
+describe("deliverOrderTickets", () => {
+  async function paidOrder(sessionId: string, quantity: number) {
+    await pay(sessionId, quantity);
+    const orderId = await orderIdOf(sessionId);
+    return {
+      orderId,
+      eventId: EVENT,
+      tierName: "early",
+      name: "Ada Buyer",
+      email: "buyer@example.com",
+      tickets: await listOrderTickets(db, orderId),
+    };
+  }
+
+  it("emails one link per ticket on this origin and records the send", async () => {
+    const order = await paidOrder("cs_test_mail", 2);
+    const fetchImpl = resendOk();
+    const sent = await deliverOrderTickets(
+      { ...env, RESEND_API_KEY: "re_test" },
+      { order, origin: ORIGIN, kind: "purchase", ipHash: null, now: NOW },
+      fetchImpl as unknown as typeof fetch,
+    );
+    expect(sent).toBe(true);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.resend.com/emails");
+    expect(new Headers(init.headers).get("Idempotency-Key")).toBe(`ticket-${order.orderId}`);
+    const body = JSON.parse(String(init.body)) as { to: string[]; text: string };
+    expect(body.to).toEqual(["buyer@example.com"]);
+    for (const ticket of order.tickets) {
+      expect(body.text).toContain(
+        `${ORIGIN}/tickets/${await signTicketToken(ticket.id, SIGNING_SECRET)}`,
+      );
+    }
+    expect(emailSends()).toEqual([
+      { order_id: order.orderId, kind: "purchase", ip_hash: null, sent: 1 },
+    ]);
+  });
+
+  it("records a failed or impossible send as not sent, without throwing", async () => {
+    const order = await paidOrder("cs_test_mail", 1);
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(
+      await deliverOrderTickets(
+        { ...env, RESEND_API_KEY: "re_test" },
+        { order, origin: ORIGIN, kind: "purchase", ipHash: null, now: NOW },
+        resendDown() as unknown as typeof fetch,
+      ),
+    ).toBe(false);
+    expect(
+      await deliverOrderTickets(
+        env,
+        { order, origin: ORIGIN, kind: "purchase", ipHash: null, now: NOW + 1 },
+        resendOk() as unknown as typeof fetch,
+      ),
+    ).toBe(false);
+    quiet.mockRestore();
+    expect(emailSends().map((s) => s.sent)).toEqual([0, 0]);
+  });
+});
+
+describe("recoverTicketsFor", () => {
+  // NOW in this file is after Form:at 004; recovery only emails tickets for
+  // nights still to come, so these run two weeks before it.
+  const BEFORE = Date.UTC(2026, 10, 21, 12);
+  const mailEnv = () => ({ ...env, RESEND_API_KEY: "re_test" });
+  const recover = (
+    email: string,
+    fetchImpl: ReturnType<typeof vi.fn>,
+    ip = "203.0.113.7",
+    now = BEFORE,
+  ) =>
+    recoverTicketsFor(
+      mailEnv(),
+      { email, ip, origin: ORIGIN, now },
+      fetchImpl as unknown as typeof fetch,
+    );
+
+  it("answers the same for a buyer's email and a stranger's, emailing only the buyer", async () => {
+    await pay("cs_test_a", 2, "Buyer@Example.com");
+    const fetchImpl = resendOk();
+    expect(await recover("buyer@example.com", fetchImpl)).toEqual({ status: "ok" });
+    expect(await recover("stranger@example.com", fetchImpl, "198.51.100.9")).toEqual({
+      status: "ok",
+    });
+    expect(sentTo(fetchImpl)).toEqual(["Buyer@Example.com"]);
+    expect(emailSends().map((s) => [s.kind, s.order_id !== null, s.sent])).toEqual([
+      ["recover", true, 1],
+      ["recover", false, 0],
+    ]);
+  });
+
+  it("emails an order again only after the cooldown", async () => {
+    await pay("cs_test_a", 1);
+    const fetchImpl = resendOk();
+    await recover("buyer@example.com", fetchImpl, "203.0.113.1");
+    await recover("buyer@example.com", fetchImpl, "203.0.113.2", BEFORE + RECOVER_COOLDOWN_MS - 1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await recover("buyer@example.com", fetchImpl, "203.0.113.3", BEFORE + RECOVER_COOLDOWN_MS + 1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops answering one connection after its hourly limit, matched or not", async () => {
+    await pay("cs_test_a", 1);
+    const fetchImpl = resendOk();
+    for (let i = 0; i < MAX_RECOVER_REQUESTS_PER_HOUR; i++) {
+      await recover(`nobody-${i}@example.com`, fetchImpl, "203.0.113.7", BEFORE + i);
+    }
+    await recover("buyer@example.com", fetchImpl, "203.0.113.7", BEFORE + 10);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    await recover("buyer@example.com", fetchImpl, "203.0.113.7", BEFORE + 60 * 60 * 1000 + 1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips orders for a night that has passed, and answers unavailable with sales off", async () => {
+    await pay("cs_test_a", 1);
+    const fetchImpl = resendOk();
+    const afterTheNight = Date.UTC(2026, 11, 6, 12);
+    expect(await recover("buyer@example.com", fetchImpl, "203.0.113.7", afterTheNight)).toEqual({
+      status: "ok",
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(
+      await recoverTicketsFor(
+        { DB: db },
+        { email: "a@b.c", ip: null, origin: ORIGIN, now: BEFORE },
+      ),
+    ).toEqual({ status: "unavailable" });
   });
 });

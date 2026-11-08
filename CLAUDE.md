@@ -163,7 +163,7 @@ steps: `/new-workspace`.
 | Offline audio + SW | `apps/web/app/data/offline-audio.ts`, `store/offlineSlice.ts`, `app/sw.ts`, `vite.config.ts` | `offline-and-service-worker.md` |
 | Web/app divide, nav, analytics, beacon, store | `apps/web/app/utils/appContext.ts`, `components/SwipeNavigator.tsx`, `routes/api/signal.ts`, `utils/rootHead.ts`, `store/` | `web-app.md` |
 | Catalogue, upload keys, peaks, push, RUM archive | `packages/data/src/`, `apps/web/scripts/`, `apps/rum-archiver/` | `data-r2-d1.md` |
-| Tickets (tables, seat counting, QR token, Stripe) | `packages/data/src/tickets.ts`, `ticketToken.ts`, `stripe.ts`, the ticket block in `apps/web/schema.sql`; buyer side in `apps/web/app/data/tickets.ts`, `routes/api/stripe-webhook.ts`, `routes/tickets/`, `components/TicketBlock.tsx` | `data-r2-d1.md`, `docs/adr/` |
+| Tickets (tables, seat counting, QR token, Stripe, email) | `packages/data/src/tickets.ts`, `ticketToken.ts`, `stripe.ts`, the ticket block in `apps/web/schema.sql`; buyer side in `apps/web/app/data/tickets.ts`, `data/ticketEmail.ts`, `routes/api/stripe-webhook.ts`, `routes/tickets/`, `components/TicketBlock.tsx`, `components/tickets/`, `store/ticketsSlice.ts` | `data-r2-d1.md`, `docs/adr/` |
 | Admin dashboard, auth, metrics | `apps/admin/app/` | `admin-security-and-metrics.md` |
 | Design system | `packages/ui/src/` — one folder per component | `design-system-and-styling.md` |
 | Instagram Story video, DJ Story image | `apps/web/app/utils/{storyVideo,djStory}/`, `components/{story,djStory}/` | `stories.md` |
