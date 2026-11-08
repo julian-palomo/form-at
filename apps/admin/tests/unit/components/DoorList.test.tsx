@@ -1,0 +1,111 @@
+import type { PaidOrder } from "@form-at/data/tickets";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DoorList } from "~/components/DoorList";
+
+// 23:42 UTC on 5 Dec is 23:42 in Glasgow (GMT in winter).
+const CHECKED_IN_AT = Date.UTC(2026, 11, 5, 23, 42);
+
+function order(overrides: Partial<PaidOrder> & Pick<PaidOrder, "orderId">): PaidOrder {
+  return {
+    ticketId: `ticket-${overrides.orderId}`,
+    name: null,
+    email: null,
+    tierName: "general",
+    amountPence: 1200,
+    paidAt: CHECKED_IN_AT - 86_400_000,
+    checkedInAt: null,
+    checkedInBy: null,
+    ...overrides,
+  };
+}
+
+const ORDERS: PaidOrder[] = [
+  order({
+    orderId: "1",
+    name: "Ada Morrison",
+    email: "ada@example.com",
+    checkedInAt: CHECKED_IN_AT,
+  }),
+  order({ orderId: "2", name: "Callum Reid", email: "callum.reid@example.com" }),
+  order({ orderId: "3", name: "Isla Grant", email: "isla@example.com" }),
+  order({ orderId: "4", name: null, email: "no-name@example.com" }),
+];
+
+const noRefresh = async () => {};
+
+function rowNames() {
+  return within(screen.getByRole("list"))
+    .getAllByRole("listitem")
+    .map((li) => li.querySelector("p")?.textContent);
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("DoorList", () => {
+  it("filters by name, case-insensitive and by substring", async () => {
+    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    await userEvent.type(screen.getByLabelText(/search name or email/i), "REI");
+    expect(rowNames()).toEqual(["Callum Reid"]);
+  });
+
+  it("filters by email", async () => {
+    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    await userEvent.type(screen.getByLabelText(/search name or email/i), "isla@");
+    expect(rowNames()).toEqual(["Isla Grant"]);
+  });
+
+  it("finds an order with no name by its email", async () => {
+    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    await userEvent.type(screen.getByLabelText(/search name or email/i), "no-name");
+    expect(rowNames()).toEqual(["no name"]);
+  });
+
+  it("shows the time on a checked-in row instead of the button", () => {
+    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    const ada = screen.getByText("Ada Morrison").closest("li");
+    if (!ada) throw new Error("no row for Ada");
+    expect(within(ada).getByText("in at 23:42")).toBeInTheDocument();
+    expect(within(ada).queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button", { name: /check in/i })).toHaveLength(3);
+  });
+
+  it("counts paid, in and to come", () => {
+    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    expect(screen.getByText("paid").nextSibling?.textContent).toBe("4");
+    expect(screen.getByText("in").nextSibling?.textContent).toBe("1");
+    expect(screen.getByText("to come").nextSibling?.textContent).toBe("3");
+  });
+
+  it("shows placeholders, never 0, when the list couldn't be read", () => {
+    render(<DoorList orders={null} onRefresh={noRefresh} />);
+    for (const label of ["paid", "in", "to come"]) {
+      expect(screen.getByText(label).nextSibling?.textContent).toBe("—");
+    }
+    expect(screen.getByText(/couldn't load the door list/i)).toBeInTheDocument();
+  });
+
+  it("says when a ticket was already used, from the 409", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { status: "already_used", checkedInAt: CHECKED_IN_AT, checkedInBy: "door@example.com" },
+          { status: 409 },
+        ),
+      ),
+    );
+    render(<DoorList orders={ORDERS} onRefresh={noRefresh} />);
+    const isla = screen.getByText("Isla Grant").closest("li");
+    if (!isla) throw new Error("no row for Isla");
+
+    await userEvent.click(within(isla).getByRole("button", { name: /check in/i }));
+
+    expect(await within(isla).findByText(/already used at 23:42/)).toBeInTheDocument();
+    expect(within(isla).getByText("by door@example.com")).toBeInTheDocument();
+    expect(screen.getByText("in").nextSibling?.textContent).toBe("2");
+  });
+});

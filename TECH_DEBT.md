@@ -1594,11 +1594,11 @@ otherwise; add a unit test per function for a non-string input.
 
 **Status: open, not blocking.** `verifyAccessJwt` itself is tested
 (`apps/admin/tests/unit/utils/verifyAccessJwt.test.ts`), and
-`api-sets-presign.test.ts` exercises it at the route. `api-sets.test.ts`,
-`api-sets-restore.test.ts` and `api-send-push.test.ts` contain no request without
-a valid `Cf-Access-Jwt-Assertion` and no 401/403 assertion. The four routes all
-call it today (read, not run); a refactor that drops the call from one of them
-would pass the suite.
+`api-sets-presign.test.ts` and `api-tickets-check-in.test.ts` exercise it at the
+route. `api-sets.test.ts`, `api-sets-restore.test.ts` and `api-send-push.test.ts`
+contain no request without a valid `Cf-Access-Jwt-Assertion` and no 401/403
+assertion. Those three routes call it today (read, not run); a refactor that
+drops the call from one of them would pass the suite.
 
 **Fix:** one test per route — a request with no assertion header gets the
 rejection status and the handler's D1/R2 work never runs.
@@ -1644,6 +1644,10 @@ person. A buyer who wants two tickets checks out twice.
 There is also no refund path in code. A refund is done in the Stripe dashboard,
 and the order is then set to `refunded` by hand in D1, which frees the seat and
 makes `checkIn` reject the ticket. Nothing sets that status automatically.
+
+A check-in can't be undone from the door (`apps/admin/app/routes/door.tsx`). A
+wrong tap is cleared by hand in D1, by setting that ticket's `checked_in_at` and
+`checked_in_by` back to NULL.
 
 **Re-visit when** a night sells enough that people ask for group checkouts, or
 refunds become more than a handful per event.

@@ -8,13 +8,14 @@ const links = [
   { to: "/dashboard", label: "dashboard" },
   { to: "/notifications", label: "notifications" },
   { to: "/sets", label: "sets" },
+  { to: "/door", label: "door" },
 ] as const;
 
 export function AdminNav() {
   const { location } = useRouterState();
 
   return (
-    // flex-wrap plus tighter mobile gap/padding: the wordmark and three
+    // flex-wrap plus tighter mobile gap/padding: the wordmark and four
     // labels don't fit 375px on one line, and without wrapping they pushed
     // the whole page 10px wider than the viewport (horizontal scroll on every
     // admin page). Desktop spacing is unchanged from sm: up. Bracket labels
