@@ -255,8 +255,9 @@ jobs:
         run: pnpm -C apps/web test:e2e --project=chromium --project=webkit
 
       # Same job, same cache — apps/admin's playwright.config.ts uses the
-      # same chromium+webkit projects already installed above, on a distinct
-      # port (5174) so it can't collide with apps/web's dev server.
+      # same chromium+webkit projects already installed above, on its own
+      # port range (tests/e2e/_port.ts) so it can't collide with apps/web's
+      # server.
       - name: Run Playwright tests (apps/admin)
         run: pnpm -C apps/admin test:e2e --project=chromium --project=webkit
 

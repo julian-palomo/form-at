@@ -51,6 +51,7 @@ code.claude.com/docs.
 | `hooks/tests/` | 128 cases for the three hooks; CI runs them too (`hooks` job) | When a hook changes | `bash .claude/hooks/tests/run.sh` |
 | `settings.json` | Permissions (deny/ask/allow), the hooks, `attribution` set to nothing | Always | Automatic |
 | `../.mcp.json` | Cloudflare's documentation MCP server (read-only docs, no account access) | Always, once approved | `/mcp` to see it |
+| `../.worktreeinclude` | Gitignored files copied into every new worktree: `CLAUDE.local.md`, `settings.local.json`, the apps' `.env` files, `routeTree.gen.ts` | When a worktree is created | `claude --worktree <name>` |
 
 ## A day of work
 
@@ -61,6 +62,33 @@ code.claude.com/docs.
 4. **`/handoff`.** Checks, docs, commit, change summary (complex parts in English and Spanish).
 5. **`/visual-review`** for anything visible: renders land in `~/Downloads/<topic>/`; you approve or ask for changes.
 6. **`/ship-pr`.** Push, PR, CI report. You review and squash-merge.
+
+## Working in parallel
+
+One folder holds one checked-out branch, so two sessions in the same folder
+step on each other however carefully they name their branches. Each parallel
+session gets its own worktree instead:
+
+```bash
+claude --worktree tickets        # second terminal: claude --worktree stories
+```
+
+What to expect:
+
+- The checkout lands in `.claude/worktrees/tickets/` (gitignored) on a branch
+  named `worktree-tickets`, cut from `origin/main`. `/ship-pr` renames it to
+  `feat/…`, `fix/…` or `chore/…` before pushing.
+- `.worktreeinclude` copies the gitignored files listed there into it. Run
+  `pnpm install` once in the worktree; `node_modules` isn't copied.
+- The hooks still run from this checkout (`$CLAUDE_PROJECT_DIR` stays put),
+  and a "don't ask again" approval is saved to this checkout's
+  `settings.local.json`, so it applies to every worktree.
+- Each app's e2e suite boots its own dev server on a port hashed from the
+  folder path (`apps/*/tests/e2e/_port.ts`), so suites in two worktrees don't
+  collide and never touch a `pnpm dev` you started.
+- On exit, a clean worktree is removed; one with work in it asks you. To come
+  back: `claude --worktree tickets --resume`. From a GitHub issue,
+  `/implement-issue <N>` inside the worktree runs the whole loop.
 
 Between features run `/clear`. Inside a long feature run `/compact`. Check what's
 using context with `/context`. To get back to a PR's session later:

@@ -58,7 +58,9 @@ git switch -c <type>/<short-slug> origin/main
 `<type>` is `feat`, `fix` or `chore`, matching the issue. One issue, one
 branch, one folder: if this folder is already on another task's branch, or the
 working tree has someone else's changes, stop and say so. Never stash; the
-other task gets its own worktree (`claude --worktree <name>`).
+other task gets its own worktree (`claude --worktree <name>`). A fresh
+worktree starts on `worktree-<name>` with a clean tree: `git switch -c` from
+there is fine, and `pnpm install` has to run once in it before the checks.
 
 ## 3. Plan
 

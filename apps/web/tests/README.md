@@ -26,8 +26,12 @@ pnpm test:e2e        # playwright (boots dev server automatically)
 pnpm test:e2e:ui     # playwright UI mode (great for debugging)
 ```
 
-The Playwright `webServer` boots `pnpm dev` itself, so don't start it manually.
-First run also needs `pnpm exec playwright install` to pull browser binaries.
+The Playwright `webServer` boots its own `vite dev`, so don't start one for it.
+It listens on a port hashed from this folder's path (`tests/e2e/_port.ts`,
+4200–4699; `apps/admin` uses 4700–5199), never on `pnpm dev`'s 5173, so a dev
+server you have running is left alone and two worktrees can run the suite at
+the same time. `E2E_PORT=4321 pnpm test:e2e` picks the port by hand. First run
+also needs `pnpm exec playwright install` to pull browser binaries.
 
 ## Layout
 
@@ -53,7 +57,8 @@ tests/
 │   ├── csp-violations.spec.ts # Zero CSP violations on the golden path; allowed hosts reachable
 │   ├── story-video.spec.ts # Story video recorder in a real browser (harness page, no UI)
 │   ├── story-picker.spec.ts # ?story=on entry, install gate, picker (zoomed strip from fine peaks, no audio mid-drag), create → share (Pixel 7; real recording on macOS)
-│   └── _helpers.ts         # shared gotoAndHydrate helper, not a spec
+│   ├── _helpers.ts         # shared gotoAndHydrate helper, not a spec
+│   └── _port.ts            # the per-checkout dev-server port playwright.config.ts boots on
 └── setup.ts          # jest-dom matchers, jsdom HTMLMediaElement stubs
 ```
 

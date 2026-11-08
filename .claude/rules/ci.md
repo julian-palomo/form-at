@@ -22,7 +22,7 @@ its own key too.
   - `unit`: all five workspaces.
   - `sets-snapshot`: regenerates `sets.generated.ts` from live D1 and fails on drift from the committed copy.
   - `chromatic`: visual regression for `packages/ui`.
-  - `e2e`: Playwright on chromium + webkit for both apps, on `ubuntu-24.04` rather than `ubuntu-latest` (Playwright's `install-deps` has no package list for 26.04). `deploy.yml`'s `e2e` is pinned the same way.
+  - `e2e`: Playwright on chromium + webkit for both apps, each on its own hashed port (`tests/e2e/_port.ts`), on `ubuntu-24.04` rather than `ubuntu-latest` (Playwright's `install-deps` has no package list for 26.04). `deploy.yml`'s `e2e` is pinned the same way.
   - `e2e-story-video`: the Story video tests that record H.264 + AAC MP4 for real, on `macos-latest`. Linux Chromium has no such encoders, so on Linux `story-video.spec.ts` skips by name and `story-picker.spec.ts`'s create flow fakes MediaRecorder.
 - **`deploy.yml`** on push to `main`, plus manual `workflow_dispatch`.
   - Re-runs `static`/`unit`/`e2e`, then `deploy` and `deploy-admin` only if all pass, so a direct push to `main` can't skip the suite.

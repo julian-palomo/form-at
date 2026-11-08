@@ -90,7 +90,8 @@ You commit, push and open the PR; the repo owner reviews and squash-merges.
 - **One session, one folder.** Each parallel Claude Code session works in its
   own worktree (`claude --worktree <name>`), never in a folder another session
   uses: a folder has one checked-out branch, so branches alone don't keep
-  sessions apart.
+  sessions apart. `.worktreeinclude` carries the gitignored env files into a
+  new worktree; `pnpm install` runs once there; e2e picks a port per folder.
 - **Branch** from an up-to-date `origin/main`, named `feat/…`, `fix/…` or `chore/…`.
   Never commit on `main`; a push to `main` deploys.
 - **Authorship is the repo owner's git config.** Never pass `--author`, `-c user.*`

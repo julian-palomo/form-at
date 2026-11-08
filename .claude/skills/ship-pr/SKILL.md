@@ -18,6 +18,9 @@ git status --porcelain --untracked-files=all
   or change `git config`.
 - Branch is `main` → stop. Work goes on `feat/…`, `fix/…` or `chore/…` from an
   up-to-date `origin/main`.
+- Branch is `worktree-…` (what `claude --worktree <name>` creates) → rename it
+  first: `git branch -m <type>/<slug>`. Renaming an unpushed local branch
+  rewrites no history.
 - Visual work (anything a user sees) → the renders must have been approved in
   this conversation (`/visual-review`). If not, stop and ask.
 - Uncommitted task files → stage them by name and commit (see `/handoff`);
