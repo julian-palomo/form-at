@@ -2,7 +2,7 @@ import { PageTitle } from "@form-at/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { OrdersList } from "~/components/OrdersList";
 import { SalesTotals } from "~/components/SalesTotals";
-import { fetchSalesPageData, grossPence } from "~/data/sales";
+import { fetchSalesPageData, salesTotals } from "~/data/sales";
 
 export const Route = createFileRoute("/tickets")({
   loader: () => fetchSalesPageData(),
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/tickets")({
 // every buyer's name and email.
 function TicketsPage() {
   const data = Route.useLoaderData();
-  const gross = data.orders ? grossPence(data.orders) : null;
+  const totals = salesTotals(data.tiers, data.orders);
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
@@ -27,7 +27,7 @@ function TicketsPage() {
           </span>
         )}
       </div>
-      <SalesTotals tiers={data.tiers} grossPence={gross} />
+      <SalesTotals tiers={data.tiers} totals={totals} />
       <OrdersList orders={data.orders} now={data.now} />
     </div>
   );

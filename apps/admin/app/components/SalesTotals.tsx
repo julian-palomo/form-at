@@ -1,28 +1,25 @@
-import type { SalesTier } from "~/data/sales";
+import type { SalesTier, SalesTotalsData } from "~/data/sales";
 import { fmtPounds } from "~/utils/fmt";
 
-// The sale at a glance: per tier, tickets sold against the cap and what's
-// held by open checkouts; then tickets sold, tickets left online and gross.
-// Every number that couldn't be read shows `—`, never `0`.
+// The sale at a glance: tickets sold, tickets left online and gross; then per
+// tier, tickets sold against the cap, what open checkouts hold, and what's
+// left. Every count is in tickets, not orders. Anything that couldn't be read
+// shows `—`, never `0`.
 
 interface SalesTotalsProps {
   tiers: SalesTier[] | null;
-  /** Paid orders' totals; null when the orders couldn't be read. */
-  grossPence: number | null;
+  totals: SalesTotalsData;
 }
 
-export function SalesTotals({ tiers, grossPence }: SalesTotalsProps) {
-  const sold = tiers ? tiers.reduce((sum, t) => sum + t.paid, 0) : null;
-  const left = tiers ? tiers.reduce((sum, t) => sum + t.left, 0) : null;
-
+export function SalesTotals({ tiers, totals }: SalesTotalsProps) {
   return (
     <section aria-label="totals" className="space-y-4">
       <dl className="grid grid-cols-3 gap-2 text-center">
         {(
           [
-            ["sold", sold == null ? null : String(sold)],
-            ["left online", left == null ? null : String(left)],
-            ["gross", grossPence == null ? null : fmtPounds(grossPence)],
+            ["sold", totals.sold == null ? null : String(totals.sold)],
+            ["left online", totals.left == null ? null : String(totals.left)],
+            ["gross", totals.grossPence == null ? null : fmtPounds(totals.grossPence)],
           ] as const
         ).map(([label, value]) => (
           <div key={label} className="border border-grey/30 py-3">

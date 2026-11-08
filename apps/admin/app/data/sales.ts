@@ -1,41 +1,17 @@
 // The sales list on admin /tickets: every order of the event on sale, and the
 // totals per tier. Every order's name and email are on it, so the loader
 // verifies the Access identity itself, like /door's.
+import { type EventOrder, type TicketTier, getActiveTier, listOrders } from "@form-at/data/tickets";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { type AccessEnv, identifyAccessRequest } from "~/utils/accessIdentity";
-
-type SalesOrderStatus = "pending" | "paid" | "expired" | "refunded";
+import { DOOR_EVENT_ID } from "./door";
 
 /** One order, which may hold several tickets. */
-export type SalesOrder = {
-  orderId: string;
-  name: string | null;
-  email: string | null;
-  tierName: string;
-  quantity: number;
-  /** The order total. */
-  amountPence: number;
-  createdAt: number;
-  paidAt: number | null;
-  /** When an unpaid order stops holding its seats. */
-  expiresAt: number;
-  status: SalesOrderStatus;
-  /** How many of the order's tickets have been checked in. */
-  ticketsIn: number;
-};
+export type SalesOrder = EventOrder;
 
-export type SalesTier = {
-  id: string;
-  name: string;
-  cap: number;
-  /** Tickets paid for in this tier. */
-  paid: number;
-  /** Tickets held by checkouts still open. */
-  held: number;
-  /** Tickets still on sale in this tier. */
-  left: number;
-};
+/** A tier's counts, all in tickets (an order of 3 is 3), from `getActiveTier`. */
+export type SalesTier = Pick<TicketTier, "id" | "name" | "cap" | "paid" | "held" | "left">;
 
 export type SalesPageData = {
   /** null when the orders couldn't be read; never shown as an empty list. */
@@ -129,9 +105,50 @@ const SAMPLE_TIERS: SalesTier[] = [
   { id: "format-004-general", name: "general", cap: 120, paid: 0, held: 0, left: 120 },
 ];
 
-/** Gross takings: the totals of paid orders. Refunded and unpaid orders don't count. */
-export function grossPence(orders: SalesOrder[]): number {
-  return orders.filter((o) => o.status === "paid").reduce((sum, o) => sum + o.amountPence, 0);
+export type SalesTotalsData = {
+  /** Tickets paid for, across tiers (an order of 3 is 3). */
+  sold: number | null;
+  /** Tickets still on sale online, across tiers. */
+  left: number | null;
+  /** Paid orders' totals. Refunded and unpaid orders don't count. */
+  grossPence: number | null;
+};
+
+/** The page's headline numbers; each is null when what it's made from couldn't be read. */
+export function salesTotals(
+  tiers: SalesTier[] | null,
+  orders: SalesOrder[] | null,
+): SalesTotalsData {
+  return {
+    sold: tiers ? tiers.reduce((sum, t) => sum + t.paid, 0) : null,
+    left: tiers ? tiers.reduce((sum, t) => sum + t.left, 0) : null,
+    grossPence: orders
+      ? orders.filter((o) => o.status === "paid").reduce((sum, o) => sum + o.amountPence, 0)
+      : null,
+  };
+}
+
+/**
+ * The orders and tiers for a request, after verifying its Access identity.
+ * Both are null without a verified identity or a DB. Read separately, so one
+ * failing still shows the other.
+ */
+export async function readSales(
+  request: Request,
+  env: SalesEnv | undefined,
+  now: number,
+): Promise<{ orders: SalesOrder[] | null; tiers: SalesTier[] | null }> {
+  const identity = await identifyAccessRequest(request, env);
+  const db = env?.DB;
+  if (!identity || !db) return { orders: null, tiers: null };
+
+  const [orders, tiers] = await Promise.all([
+    listOrders(db, DOOR_EVENT_ID).catch(() => null),
+    getActiveTier(db, DOOR_EVENT_ID, now)
+      .then((r) => r.tiers)
+      .catch(() => null),
+  ]);
+  return { orders, tiers };
 }
 
 export const fetchSalesPageData = createServerFn({ method: "GET" }).handler(
@@ -143,10 +160,6 @@ export const fetchSalesPageData = createServerFn({ method: "GET" }).handler(
       return { orders: SAMPLE_ORDERS, tiers: SAMPLE_TIERS, now: SAMPLE_NOW, isSampleData: true };
     }
     const now = Date.now();
-    const identity = await identifyAccessRequest(getRequest(), cf.env);
-    if (!identity || !cf.env.DB) return { orders: null, tiers: null, now, isSampleData: false };
-    // The order and tier reads land with the multi-ticket orders change to
-    // packages/data/src/tickets.ts; until then both read as unavailable.
-    return { orders: null, tiers: null, now, isSampleData: false };
+    return { ...(await readSales(getRequest(), cf.env, now)), now, isSampleData: false };
   },
 );

@@ -14,23 +14,21 @@ function countUnder(label: string): string | null | undefined {
 }
 
 describe("SalesTotals", () => {
-  it("adds sold and left across tiers, and shows gross", () => {
-    render(<SalesTotals tiers={TIERS} grossPence={24_000} />);
+  it("shows sold, left online and gross", () => {
+    render(<SalesTotals tiers={TIERS} totals={{ sold: 24, left: 124, grossPence: 24_000 }} />);
     expect(countUnder("sold")).toBe("24");
     expect(countUnder("left online")).toBe("124");
     expect(countUnder("gross")).toBe("£240.00");
   });
 
   it("shows each tier against its cap, with what's held", () => {
-    render(<SalesTotals tiers={TIERS} grossPence={0} />);
-    const second = screen.getByText("second").closest("li");
-    expect(second).toHaveTextContent("9 / 15 · 2 held · 4 left");
-    const early = screen.getByText("early").closest("li");
-    expect(early).toHaveTextContent("15 / 15 · 0 left");
+    render(<SalesTotals tiers={TIERS} totals={{ sold: 24, left: 124, grossPence: 0 }} />);
+    expect(screen.getByText("second").closest("li")).toHaveTextContent("9 / 15 · 2 held · 4 left");
+    expect(screen.getByText("early").closest("li")).toHaveTextContent("15 / 15 · 0 left");
   });
 
   it("shows — rather than 0 for whatever it couldn't read", () => {
-    render(<SalesTotals tiers={null} grossPence={null} />);
+    render(<SalesTotals tiers={null} totals={{ sold: null, left: null, grossPence: null }} />);
     expect(countUnder("sold")).toBe("—");
     expect(countUnder("left online")).toBe("—");
     expect(countUnder("gross")).toBe("—");
