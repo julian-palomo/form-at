@@ -10,7 +10,7 @@ paths:
 
 ## Never apply `schema.sql` with `--file` against a database that already exists
 
-It holds **9 `ALTER TABLE`s that are not idempotent** — re-running them fails
+It holds **10 `ALTER TABLE`s that are not idempotent** — re-running them fails
 with a duplicate-column error. `ADD COLUMN IF NOT EXISTS` is not an option: D1
 rejects it (`near "EXISTS": syntax error … SQLITE_ERROR`), unlike vanilla SQLite
 ≥3.35. `schema.sql` is the reference definition and what a *fresh* database needs
@@ -49,7 +49,7 @@ that were never generated.
 | Waveform peaks | `apps/web/scripts/generate-peaks.ts` (`pnpm -C apps/web peaks`, needs `ffmpeg` on PATH) writes both files: `peaks.json` (player) and `peaks-fine.bin` (Story picker; format in `packages/data/src/finePeaks.ts`). Existing sets: `backfill-fine-peaks` | README → *"Waveform peaks are computed with ffmpeg, not in the browser"*. Keep the coarse file at 8kHz (higher, it no longer matches the published ones) and the fine one at 48000 Hz, the sets' own rate and the usual phone `AudioContext` rate (any other rate resamples and drifts from the picker's own decode). The backfill only prints its R2/D1 commands (Cloudflare writes are the owner's). |
 | Push sending | `packages/data/src/webPush.ts` | README → *"The standard Web Push library doesn't run on Workers"* |
 | RUM archive | `apps/rum-archiver/src/index.ts`, query + upsert in `packages/data/src/rumArchive.ts` | Cloudflare degrades beacon data after 7 days, so a cron captures it first. Pages cannot run cron — hence a standalone Worker. Never remove the upsert's `sample_interval` guard: it stops a late run overwriting exact rows. |
-| Tickets | Tables at the end of `apps/web/schema.sql`; queries in `packages/data/src/tickets.ts`; QR token in `packages/data/src/ticketToken.ts`; tests on real SQLite via `packages/data/tests/helpers/sqliteD1.ts` | `docs/adr/2026-11-08-stripe-checkout-and-signed-ticket-token.md`. Capacity is counted from `ticket_orders`: never add `sold`/`reserved` counters. Every state change stays one conditional statement (or one `batch`): a read followed by a write lets two requests take the last seat or confirm twice. Only the verified Stripe webhook marks an order paid. |
+| Tickets | Tables at the end of `apps/web/schema.sql`; queries in `packages/data/src/tickets.ts`; QR token in `packages/data/src/ticketToken.ts`; Stripe Checkout and webhook signature in `packages/data/src/stripe.ts` (plain `fetch`, no SDK); buyer side in `apps/web/app/data/tickets.ts` and `routes/api/stripe-webhook.ts`; tests on real SQLite via `packages/data/tests/helpers/sqliteD1.ts` | `docs/adr/2026-11-08-stripe-checkout-and-signed-ticket-token.md`. Capacity is counted from `ticket_orders`: never add `sold`/`reserved` counters. Every state change stays one conditional statement (or one `batch`): a read followed by a write lets two requests take the last seat or confirm twice. Only the verified Stripe webhook marks an order paid. Sales show only where `DB`, `STRIPE_SECRET_KEY` and `TICKET_SIGNING_SECRET` are all set (`salesConfig` in `apps/web/app/data/tickets.ts`), which is what keeps test keys on the Preview environment off the public site. Unpaid holds are capped per HMAC'd IP (`MAX_LIVE_HOLDS_PER_IP`) inside `reserveSeat`'s own WHERE. |
 
 `apps/web/scripts/README.md` documents every script in that folder; adding one
 without listing it makes that README's own framing false.

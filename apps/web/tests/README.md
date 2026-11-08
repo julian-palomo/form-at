@@ -5,7 +5,8 @@ no separate README: `apps/admin` has its own `tests/unit` + `tests/e2e`,
 `apps/rum-archiver` has `tests/` (Vitest only — a cron Worker has no browser
 surface to drive), `packages/data` has `tests/unit` (Vitest, node) and runs
 the D1 queries whose correctness rests on SQL against real SQLite through
-`tests/helpers/sqliteD1.ts`, and `packages/ui` co-locates a `.test.tsx` beside each
+`tests/helpers/sqliteD1.ts` (which `apps/web`'s ticket tests import too, under
+`// @vitest-environment node`), and `packages/ui` co-locates a `.test.tsx` beside each
 component (its interaction tests run Storybook stories through Vitest via
 `composeStories`). Run everything at once from the repo root with `pnpm test` /
 `pnpm test:e2e`.

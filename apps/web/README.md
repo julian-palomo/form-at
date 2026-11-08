@@ -30,9 +30,28 @@ pnpm build:web && pnpm start:web   # :4173, real service worker
 | `app/components/` | app-coupled components — anything tied to Zustand, the router, or this app's asset-URL scheme. Generic presentational pieces live in `packages/ui` |
 | `app/hooks/` | `useAudioPlayer` owns all playback logic; `Player.tsx` is layout only |
 | `app/store/` | Zustand slices, composed in `index.ts` |
-| `app/data/` | catalogue, DJs, events, offline-audio IDB access |
+| `app/data/` | catalogue, DJs, events, offline-audio IDB access, ticket-sales server functions (`tickets.ts`) |
 | `app/sw.ts` | the service worker, built by `buildServiceWorker` in `vite.config.ts` |
 | `schema.sql` | D1 schema for the whole project, including tables only `apps/admin` and `apps/rum-archiver` read. **Never apply it with `--file`** — it holds non-idempotent `ALTER`s |
+
+## Ticket sales
+
+The buy block on an event page (`components/TicketBlock.tsx`) starts a Stripe
+Checkout; Stripe returns the buyer to `/tickets/success`, and
+`/api/stripe-webhook` is the only place an order becomes paid. Sales are on
+only where the Pages environment has the D1 binding and all of these secrets,
+so test keys belong in the Preview environment and Production shows no block
+until live keys are set there:
+
+| Secret | |
+|---|---|
+| `STRIPE_SECRET_KEY` | creates Checkout Sessions |
+| `STRIPE_WEBHOOK_SECRET` | verifies the webhook's `Stripe-Signature` |
+| `TICKET_SIGNING_SECRET` | HMACs buyer IPs for the hold limit and signs ticket tokens; at least 32 characters, never rotated while tickets are valid |
+
+The Stripe webhook endpoint listens for `checkout.session.completed` and
+`checkout.session.expired`. Seat counting and the reasons behind it:
+[`docs/adr/`](../../docs/adr/).
 
 Sub-directory docs: [`scripts/`](scripts/README.md) for every build and ops
 script, [`tests/`](tests/README.md) for test conventions,

@@ -54,6 +54,14 @@ request-no-cors guard discards anything not no-CORS-safelisted — so seeks retu
 doesn't implement that guard, so **no unit test can catch this**; it only appears
 in a real browser.
 
+## Ticket pages and ticket data never come from a cache
+
+`sw.ts`'s navigation route skips `/tickets/`, and every ticket server function in
+`apps/web/app/data/tickets.ts` is POST (the `_serverFn` cache only takes GETs).
+A cached "confirming…" on the page Stripe returns a buyer to would never turn
+into "you're in", and a cached price or "sold out" would be wrong. Keep new
+ticket pages under `/tickets/` and new ticket server functions POST.
+
 ## Service worker build
 
 `buildServiceWorker` in `apps/web/vite.config.ts` owns the precache allowlist and
