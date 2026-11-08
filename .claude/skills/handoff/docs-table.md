@@ -13,7 +13,8 @@ directly; the table will always lag behind the next kind of change.
 | `CLAUDE.md` | a hard constraint, the git workflow, a command or the doc map changed — or a new silent-failure rule needs its one-liner. |
 | `.claude/rules/*.md` | code a rule describes changed: a file moved or was renamed (check the rule's `paths:` too), a protected string changed, a map row is now wrong. |
 | `.claude/skills/*`, `.claude/hooks/*`, `.claude/README.md` | a procedure, a hook pattern or the setup itself changed. |
-| `PWA_PROGRESS.md` | a decision was made whose reasoning is worth preserving, **including what was tried and rejected**. Dated entries are history; don't edit them to match the present. |
+| `docs/adr/` | a decision was made that shapes the project: a new file from `template.md` and a row in its README. Records are history; a change of mind is a new ADR that supersedes the old one. |
+| `PWA_PROGRESS.md` | an existing entry's premise changed and needs a dated follow-up, **including what was tried and rejected**. Dated entries are history; don't edit them to match the present. New decisions go in `docs/adr/`. |
 | `TECH_DEBT.md` | a known gap was accepted rather than fixed, or an existing item's premise changed. |
 | `IMPROVEMENTS.md` | something shipped, or was deliberately dropped and shouldn't be re-proposed. |
 | `apps/web/README.md` | that app's layout, its build/dev commands, or one of its silent-failure rules changed. |

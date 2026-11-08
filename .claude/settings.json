@@ -60,6 +60,8 @@
       "Bash(git commit -F *)",
       "Bash(git push -u origin *)",
       "Bash(git push)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
       "Bash(gh pr create *)",
       "Bash(gh pr view *)",
       "Bash(gh pr checks *)",
@@ -75,7 +77,8 @@
       "Bash(pnpm lint *)",
       "Bash(pnpm tsc *)",
       "Bash(pnpm dump-diff *)",
-      "Bash(bash .claude/hooks/tests/run.sh)"
+      "Bash(bash .claude/hooks/tests/run.sh)",
+      "Bash(bash .claude/skills/implement-issue/wait-for-reply.sh *)"
     ]
   },
   "hooks": {

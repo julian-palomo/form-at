@@ -22,6 +22,8 @@ git status --porcelain --untracked-files=all
   this conversation (`/visual-review`). If not, stop and ask.
 - Uncommitted task files → stage them by name and commit (see `/handoff`);
   unrelated files stay as they are and are mentioned in the report.
+- No issue number for `Closes #N` → ask for it. Work that started from an
+  issue closes it from the PR body; work without one says so in the body.
 
 ## 2. Push
 
@@ -37,8 +39,11 @@ Write the body to a file in the scratchpad, from [pr-body-template.md](pr-body-t
 then:
 
 ```bash
-gh pr create --base main --head <branch> --title "<lowercase imperative, like the commit>" --body-file <file>
+gh pr create --base main --head <branch> --title "<lowercase imperative, like the commit>" --body-file <file> --assignee @me
 ```
+
+`@me` is the authenticated `gh` user, so the PR lands in the repo owner's
+"Assigned" list on GitHub.
 
 No attribution line anywhere in the title or body. `.claude/settings.json` sets
 `attribution` to empty and `guard-bash.sh` blocks one if it slips in.
