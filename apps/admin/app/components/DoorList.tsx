@@ -6,8 +6,9 @@ import type { CheckInResponseBody } from "~/routes/api/tickets/check-in";
 import { fmtClock } from "~/utils/fmt";
 import { DoorSales } from "./DoorSales";
 
-// The door: the door sales counter, every paid order, a search over name and
-// email, and one tap to let a ticket in. Built for a phone in a dark basement: large tap targets, large
+// The door: the door sales counter, every paid ticket (an order of 3 is three
+// rows, "1 of 3"…), a search over name and email, and one tap to let a ticket
+// in. Built for a phone in a dark basement: large tap targets, large
 // text, nothing to scroll sideways. The list is loaded once on the server;
 // search runs here over that list, so it keeps working between refreshes.
 
@@ -56,7 +57,9 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
     return outcome && outcome.kind !== "error" ? outcome.checkedInAt : null;
   };
 
-  const paid = orders?.length ?? null;
+  // One row per ticket. A paid order whose tickets are missing is one row
+  // standing for all its seats, so it counts its whole quantity.
+  const paid = orders ? orders.reduce((n, o) => n + (o.ticketId ? 1 : o.quantity), 0) : null;
   const checkedIn = orders ? orders.filter((o) => checkedInAtOf(o) != null).length : null;
   const remaining = paid != null && checkedIn != null ? paid - checkedIn : null;
   const visible = orders?.filter((o) => matchesDoorSearch(o, query)) ?? [];
@@ -167,7 +170,7 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
             <ul className="divide-y divide-grey/10 border-y border-grey/10">
               {visible.map((order) => (
                 <DoorRow
-                  key={order.orderId}
+                  key={order.ticketId ?? order.orderId}
                   order={order}
                   checkedInAt={checkedInAtOf(order)}
                   outcome={order.ticketId ? outcomes[order.ticketId] : undefined}
@@ -230,7 +233,13 @@ function DoorRow({
           {order.name ?? "no name"}
         </p>
         <p className="text-sm text-grey break-all">{order.email ?? "no email"}</p>
-        <p className="text-xs text-grey/70 tracking-widest">{order.tierName}</p>
+        <p className="text-xs text-grey/70 tracking-widest">
+          {order.tierName}
+          {order.quantity > 1 &&
+            (order.seq != null
+              ? ` · ${order.seq + 1} of ${order.quantity}`
+              : ` · ${order.quantity} tickets`)}
+        </p>
       </div>
       <div className="shrink-0 text-right">
         {status}

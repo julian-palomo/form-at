@@ -2,6 +2,7 @@ import { getEvent } from "@form-at/data/events";
 import { createCheckoutSession } from "@form-at/data/stripe";
 import {
   MAX_LIVE_HOLDS_PER_IP,
+  MAX_TICKETS_PER_ORDER,
   attachStripeSession,
   countLiveHoldsForIp,
   getActiveTier,
@@ -58,8 +59,11 @@ function salesConfig(env: TicketEnv | undefined): SalesConfig | null {
 
 export type TicketAvailability = {
   eventId: string;
-  /** null when every tier is full. */
-  active: { name: string; pricePence: number } | null;
+  /**
+   * The tier on sale; null when every tier is full. `maxQuantity` is the most
+   * one purchase can take: what's left in the tier, up to MAX_TICKETS_PER_ORDER.
+   */
+  active: { name: string; pricePence: number; maxQuantity: number } | null;
 };
 
 /** What the buy block shows; null hides the block (sales off, or an event without tiers). */
@@ -74,7 +78,13 @@ export async function loadAvailability(
   if (tiers.length === 0) return null;
   return {
     eventId,
-    active: active ? { name: active.name, pricePence: active.pricePence } : null,
+    active: active
+      ? {
+          name: active.name,
+          pricePence: active.pricePence,
+          maxQuantity: Math.min(active.left, MAX_TICKETS_PER_ORDER),
+        }
+      : null,
   };
 }
 
@@ -95,18 +105,21 @@ async function hashIp(ip: string, secret: string): Promise<string> {
 export type StartCheckoutResult =
   | { status: "redirect"; url: string }
   | { status: "sold_out" }
+  /** The active tier has fewer seats than asked for; `availability` is what's on sale now. */
+  | { status: "fewer_left"; availability: TicketAvailability }
   | { status: "too_many_holds" }
   | { status: "unavailable" }
   | { status: "error" };
 
 export async function startCheckoutFor(
   env: TicketEnv | undefined,
-  input: { eventId: string; ip: string | null; origin: string; now: number },
+  input: { eventId: string; quantity: number; ip: string | null; origin: string; now: number },
   fetchImpl: typeof fetch = fetch,
 ): Promise<StartCheckoutResult> {
   const config = salesConfig(env);
   const event = getEvent(input.eventId);
   if (!config || !event) return { status: "unavailable" };
+  const { quantity } = input;
   const { db } = config;
 
   const ipHash = await hashIp(input.ip ?? "unknown", config.signingSecret);
@@ -115,16 +128,31 @@ export async function startCheckoutFor(
   const orderId = crypto.randomUUID();
 
   // Two tries: the active tier can fill between reading it and reserving,
-  // and the second read then finds the next tier.
+  // and the second read then finds the next tier. A tier with fewer seats
+  // than asked for is never split: the buyer is told what's left instead.
   let seat = null;
   let tierName = "";
   for (let attempt = 0; attempt < 2 && !seat; attempt++) {
     const { active } = await getActiveTier(db, input.eventId, input.now);
     if (!active) return { status: "sold_out" };
+    if (active.left < quantity) {
+      return {
+        status: "fewer_left",
+        availability: {
+          eventId: input.eventId,
+          active: {
+            name: active.name,
+            pricePence: active.pricePence,
+            maxQuantity: Math.min(active.left, MAX_TICKETS_PER_ORDER),
+          },
+        },
+      };
+    }
     tierName = active.name;
     seat = await reserveSeat(db, {
       tierId: active.id,
       orderId,
+      quantity,
       ipHash,
       now: input.now,
       expiresAt: holdExpiresAt,
@@ -141,7 +169,8 @@ export async function startCheckoutFor(
       {
         orderId,
         productName: `${event.title} · ${tierName}`,
-        amountPence: seat.amountPence,
+        unitPence: seat.unitPence,
+        quantity: seat.quantity,
         expiresAt: sessionExpiresAt,
         successUrl: `${input.origin}/tickets/success?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${input.origin}/events/${input.eventId}`,
@@ -164,6 +193,8 @@ export type OrderView = {
   date: string;
   venue: string;
   tierName: string;
+  quantity: number;
+  /** The order's total. */
   amountPence: number;
   name: string | null;
 };
@@ -184,6 +215,7 @@ export async function loadOrderView(
     date: event?.date ?? "",
     venue: event?.venue ?? "",
     tierName: order.tierName,
+    quantity: order.quantity,
     amountPence: order.amountPence,
     name: order.name,
   };
@@ -208,6 +240,20 @@ function parseEventId(raw: unknown): string {
   return raw;
 }
 
+function parseCheckoutInput(raw: unknown): { eventId: string; quantity: number } {
+  if (!raw || typeof raw !== "object") throw new Error("Invalid checkout input");
+  const { eventId, quantity } = raw as Record<string, unknown>;
+  if (
+    typeof quantity !== "number" ||
+    !Number.isInteger(quantity) ||
+    quantity < 1 ||
+    quantity > MAX_TICKETS_PER_ORDER
+  ) {
+    throw new Error("Invalid quantity");
+  }
+  return { eventId: parseEventId(eventId), quantity };
+}
+
 function parseSessionId(raw: unknown): string {
   if (typeof raw !== "string" || !SESSION_PATTERN.test(raw)) throw new Error("Invalid session id");
   return raw;
@@ -224,13 +270,14 @@ export const fetchTicketAvailability = createServerFn({ method: "POST" })
   });
 
 export const startCheckout = createServerFn({ method: "POST" })
-  .inputValidator(parseEventId)
-  .handler(async ({ data: eventId, context }): Promise<StartCheckoutResult> => {
+  .inputValidator(parseCheckoutInput)
+  .handler(async ({ data: { eventId, quantity }, context }): Promise<StartCheckoutResult> => {
     const ctx = readContext(context);
     if (!ctx.request) return { status: "unavailable" };
     try {
       return await startCheckoutFor(ctx.cloudflare?.env, {
         eventId,
+        quantity,
         ip: ctx.request.ip,
         origin: ctx.request.origin,
         now: Date.now(),

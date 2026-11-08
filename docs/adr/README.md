@@ -30,3 +30,4 @@ dated entries stay as they are. New decisions go here.
 | Date | Decision |
 |---|---|
 | 2026-11-08 | [Sell tickets with Stripe Checkout, counted capacity and a signed ticket token](2026-11-08-stripe-checkout-and-signed-ticket-token.md) |
+| 2026-11-08 | [Several tickets per order, one ticket row per seat](2026-11-08-several-tickets-per-order.md) |
