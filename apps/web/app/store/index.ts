@@ -63,6 +63,7 @@ export const useStore = create<AppStore>()(
         // The tickets this device holds, by token. Plain strings and numbers
         // only; the event itself is looked up from `getEvent` at render time.
         tickets: state.tickets,
+        celebratedOrders: state.celebratedOrders,
       }),
       merge: (persisted, current) => {
         // zustand calls merge(undefined, current) when the storage key does
@@ -84,6 +85,7 @@ export const useStore = create<AppStore>()(
           hasRequestedPersist,
           catalogueSets: persistedCatalogueSets,
           tickets,
+          celebratedOrders,
         } = persisted as {
           nowPlayingId: string | null;
           positions: Record<string, number>;
@@ -96,6 +98,7 @@ export const useStore = create<AppStore>()(
           hasRequestedPersist?: boolean;
           catalogueSets?: MusicSet[];
           tickets?: Record<string, StoredTicket>;
+          celebratedOrders?: string[];
         };
         // Falls back to `current.catalogueSets` (the bare snapshot default
         // from createCatalogueSlice) for a payload persisted before this
@@ -127,6 +130,7 @@ export const useStore = create<AppStore>()(
           offlineSets: offlineSets ?? {},
           hasRequestedPersist: hasRequestedPersist ?? false,
           tickets: tickets ?? {},
+          celebratedOrders: celebratedOrders ?? [],
         };
       },
       // Rehydration failures are otherwise fully silent — persist catches

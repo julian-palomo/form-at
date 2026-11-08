@@ -43,11 +43,11 @@ tests/
 ├── unit/
 │   ├── store/         # Zustand slices (playerSlice, catalogueSlice, rehydration)
 │   ├── hooks/         # useAudioPlayer*, useFirstLoad, useOfflineDownload…
-│   ├── components/    # BookingsButton, CatalogueSync, etc. (shared design-system
+│   ├── components/    # BookingsButton, CatalogueSync, TicketQr, Celebration, etc. (shared design-system
 │   │                  #   components live in packages/ui and are tested there)
 │   ├── utils/         # fmt, appContext, deeplink, installCapability…
 │   ├── data/          # beacon-queue, sets, setsForRoute (the D1-fallback logic), tickets (real SQLite), ticketEmail (Resend request shape)
-│   ├── routes/        # API handlers — api-signal, api-event, api-push-subscribe, api-stripe-webhook (real SQLite)
+│   ├── routes/        # API handlers — api-signal, api-event, api-push-subscribe, api-stripe-webhook (real SQLite); pages — dj-detail, event-detail (page order, bracket actions), ticket-success (celebration once per order)
 │   └── scripts/       # build scripts (optimize-images, generate-peaks)
 ├── fixtures/          # binary test inputs (mediarecorder-fragmented.mp4: a real Chrome recording, cut after 2 fragments)
 ├── e2e/

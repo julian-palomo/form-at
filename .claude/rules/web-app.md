@@ -44,10 +44,11 @@ Zustand, composed in `index.ts`:
 | `offlineSlice` | downloads, `activeDownloadId`, IDB-backed saved-set state, failure classification |
 | `catalogueSlice` | live catalogue fetched over the static snapshot |
 | `uiSlice` | transient UI state |
-| `ticketsSlice` | the tickets this device holds, by signed token (plain strings and numbers; the event is looked up from `getEvent` at render time); what `/tickets` draws offline |
+| `ticketsSlice` | the tickets this device holds, by signed token (plain strings and numbers; the event is looked up from `getEvent` at render time); what `/tickets` draws offline. Also `celebratedOrders`, the checkout sessions whose confetti has played on this device |
 
 `index.ts` persists a `partialize`d subset to localStorage: `nowPlayingId`,
-`positions`, `peaksCache`, `durations`, PWA install booleans, `tickets`. **Never persist
+`positions`, `peaksCache`, `durations`, PWA install booleans, `tickets`,
+`celebratedOrders`. **Never persist
 `MusicSet` objects** — only IDs, rehydrated via
 `getCatalogueSet(catalogueSets, id) ?? getSet(id)`. A persisted object is a
 migration hazard the moment the shape changes; an ID isn't. `deferredPrompt` is

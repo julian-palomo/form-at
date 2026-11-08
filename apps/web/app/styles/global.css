@@ -19,6 +19,21 @@
   }
 }
 
+/* The success page's confetti (components/tickets/Celebration.tsx): each
+   square falls the height of the screen, drifting sideways by its own
+   --drift. The layer is hidden under reduce-motion, so the 0.01ms collapse
+   below never shows a frozen shower. */
+@keyframes ticket-confetti-fall {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(var(--drift, 0px), 105vh, 0);
+    opacity: 0.7;
+  }
+}
+
 @keyframes fadeOutDown {
   from {
     opacity: 1;

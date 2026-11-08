@@ -59,12 +59,17 @@ The Stripe webhook endpoint listens for `checkout.session.completed` and
 buyer one `/tickets/<token>` link per ticket, from
 `Form:at <tickets@formatglasgow.com>` (SPF and DKIM for the domain are set
 in Cloudflare DNS). That page (`routes/tickets/$token.tsx`) verifies the
-token, draws the QR (`components/tickets/TicketQr.tsx`, `uqr`, lazy) and
+token, draws the QR (`components/tickets/TicketQr.tsx`, `uqr`, lazy) inside
+the gold ticket frame (`components/tickets/TicketCard.tsx`) and
 stores the ticket in `store/ticketsSlice.ts`; `/tickets`
 (`routes/tickets/index.tsx`) lists the device's tickets from the store alone,
 so it works offline, and holds the "recover my tickets" form. `sw.ts` leaves
 every `/tickets/…` navigation to the network; the bare `/tickets` is cached
-like any other page, and its HTML carries no tickets. Seat counting and the
+like any other page, and its HTML carries no tickets. The first time a device
+sees an order paid, `/tickets/success` plays the confetti
+(`components/tickets/Celebration.tsx`, lazy, CSS keyframes in
+`styles/global.css`, hidden under reduce-motion) and remembers the checkout
+session in the store's `celebratedOrders`, so it never replays. Seat counting and the
 reasons behind all of this: [`docs/adr/`](../../docs/adr/).
 
 Sub-directory docs: [`scripts/`](scripts/README.md) for every build and ops

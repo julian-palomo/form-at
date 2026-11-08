@@ -58,31 +58,27 @@ function EventDetail() {
           ‹ events_archive
         </Link>
 
-        <div className="flex items-baseline justify-between gap-4 mb-2">
+        {/* The title's row: the title, then the two bracket actions at the
+            same weight. They wrap under a long title on a narrow screen. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 mb-5">
           <PageTitle className="text-3xl sm:text-4xl font-display font-bold leading-tight tracking-tight mb-0">
             {event.title}
           </PageTitle>
-          <ShareButton target={() => eventShareTarget(event)} />
+          <div className="flex items-baseline gap-4">
+            <ShareButton target={() => eventShareTarget(event)} />
+            {event.status === "upcoming" && <AddToCalendarButton event={event} />}
+          </div>
         </div>
 
-        <div className="space-y-1 mb-6">
+        <div className="space-y-1 mb-10">
           {metaRows.map(([label, value]) => (
             <TerminalRow key={label} label={label} value={value} />
           ))}
         </div>
 
-        {/* The event's intro, at body size between the facts and the lineup:
-            what the night is, or why a lineup might look partial (a
-            co-organized event where some names have no Form:at DJ profile). */}
-        {event.description && (
-          <p className="text-sm sm:text-base text-grey leading-relaxed mb-10">
-            {event.description}
-          </p>
-        )}
-
-        {/* Hidden unless sales are on for this event; see TicketBlock. */}
-        {event.status === "upcoming" && <TicketBlock eventId={event.id} />}
-
+        {/* Page order: facts, lineup, tickets, description, flyer last. The
+            lineup sells the night, the buy block is what the page is for
+            once it has, and the flyer is the poster a buyer scrolls down to. */}
         {lineup.length > 0 ? (
           <div className="mb-10">
             <PageTitle>lineup</PageTitle>
@@ -113,6 +109,18 @@ function EventDetail() {
             </p>
           </div>
         ) : null}
+
+        {/* Hidden unless sales are on for this event; see TicketBlock. */}
+        {event.status === "upcoming" && <TicketBlock eventId={event.id} />}
+
+        {/* The event's intro: what the night is, or why a lineup might look
+            partial (a co-organized event where some names have no Form:at DJ
+            profile). */}
+        {event.description && (
+          <p className="text-sm sm:text-base text-grey leading-relaxed mb-10">
+            {event.description}
+          </p>
+        )}
       </div>
 
       {event.flyer && (
@@ -127,12 +135,6 @@ function EventDetail() {
           // detail page with a single hero image, it's acceptable.
           className="w-full max-w-2xl h-auto mb-10 mx-auto rounded-card"
         />
-      )}
-
-      {event.status === "upcoming" && (
-        <div className="mb-10 flex justify-center">
-          <AddToCalendarButton event={event} />
-        </div>
       )}
     </PageLayout>
   );
