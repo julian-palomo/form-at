@@ -44,10 +44,10 @@ code.claude.com/docs.
 | `skills/new-workspace/` | README, root README, CLAUDE.md table, tooling for a new workspace or script | Adding one | `/new-workspace` |
 | `agents/constraint-reviewer.md` | Reads the diff against §1 and the rules, reports `file:line` findings (Sonnet) | When you say yes at handoff | "run the constraint reviewer" |
 | `agents/docs-truth-checker.md` | Finds doc sentences the diff made false (Haiku, skips CLAUDE.md) | When you say yes at handoff | "run the docs truth checker" |
-| `hooks/guard-bash.sh` | Blocks stash, `add -A`, amend, force-push, push to main, `gh pr merge`, attribution, authorship changes, deleting server.ts, `d1 --file --remote`; asks before builds, e2e, wrangler writes, `git restore` | Before every Bash command | Automatic |
+| `hooks/guard-bash.sh` | Blocks stash, `add -A`, amend, rebase, force-push, push to main, merge and auto-merge (`gh pr merge`, the API), attribution (including a Claude session link), authorship changes (`--author`, `-c user.*`, `GIT_AUTHOR_*`), deleting server.ts, `d1 --file --remote`; asks before builds, e2e, wrangler writes, `git restore` | Before every Bash command | Automatic |
 | `hooks/format-on-edit.sh` | `biome check --write` on the edited file | After every edit | Automatic |
-| `hooks/check-invariants.sh` | Greps protected files for the silent-failure invariants, and any source file for invisible characters | After every edit | Automatic |
-| `hooks/tests/` | 113 cases for the three hooks | When a hook changes | `bash .claude/hooks/tests/run.sh` |
+| `hooks/check-invariants.sh` | Greps protected files for the silent-failure invariants, any file for Stripe-shaped keys, and any source file for invisible characters | After every edit | Automatic |
+| `hooks/tests/` | 128 cases for the three hooks; CI runs them too (`hooks` job) | When a hook changes | `bash .claude/hooks/tests/run.sh` |
 | `settings.json` | Permissions (deny/ask/allow), the hooks, `attribution` set to nothing | Always | Automatic |
 | `../.mcp.json` | Cloudflare's documentation MCP server (read-only docs, no account access) | Always, once approved | `/mcp` to see it |
 

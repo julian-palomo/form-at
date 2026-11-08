@@ -45,7 +45,7 @@ jobs:
       # packages/data) in one task graph.
       - run: pnpm turbo tsc
 
-  # ── Unused files/deps/exports (knip) ─────────────────────────────────
+  # ── Unused files/deps/exports (knip) ─────────────────────────────────────
   knip:
     name: Knip
     runs-on: ubuntu-latest
@@ -68,7 +68,7 @@ jobs:
       - run: pnpm -C apps/admin exec vite build
       - run: pnpm knip
 
-  # ── Claude Code hook tests ───────────────────────────────────────────
+  # ── Claude Code hook tests ───────────────────────────────────────────────
   # The hooks in .claude/hooks/ enforce CLAUDE.md §1-§2 on every agent
   # session; a broken hook fails silently there. format-on-edit needs Biome
   # from node_modules, hence the install.
@@ -88,7 +88,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: bash .claude/hooks/tests/run.sh
 
-  # ── Unit tests (vitest, jsdom) ───────────────────────────────────────
+  # ── Unit tests (vitest, jsdom) ───────────────────────────────────────────
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -108,7 +108,7 @@ jobs:
       - run: pnpm --filter @form-at/data test
       - run: pnpm -C apps/rum-archiver test:run
 
-  # ── Sets snapshot drift check ─────────────────────────────────────────
+  # ── Sets snapshot drift check ─────────────────────────────────────────────
   # packages/data/src/sets.generated.ts is a MANUALLY-refreshed baseline, not
   # something any deploy keeps current in git — see the `sets` export's own
   # comment in packages/data/src/sets.ts for the full story (this file sat 2
@@ -267,7 +267,7 @@ jobs:
             apps/admin/playwright-report/
           retention-days: 7
 
-  # ── Story video recording (macOS) ──────────────────────────────────────
+  # ── Story video recording (macOS) ──────────────────────────────────────────
   # The Linux Chromium in the e2e job above can't record H.264 + AAC MP4 (no
   # encoders), so the tests that record for real run here on macOS, where
   # Chromium uses the system encoders. On Linux, story-video.spec.ts skips by
