@@ -22,7 +22,9 @@ export type CheckoutSessionParams = {
   orderId: string;
   /** Shown on Stripe's page and receipt, e.g. "Form:at 004 · early". */
   productName: string;
-  amountPence: number;
+  /** The price of one ticket; Stripe charges unitPence × quantity. */
+  unitPence: number;
+  quantity: number;
   /** Unix seconds. Stripe accepts 30 minutes to 24 hours from now. */
   expiresAt: number;
   successUrl: string;
@@ -39,9 +41,9 @@ export function checkoutSessionBody(params: CheckoutSessionParams): URLSearchPar
     // settled when the session completes. A delayed method such as a bank
     // debit would complete the session before the money arrives.
     "payment_method_types[0]": "card",
-    "line_items[0][quantity]": "1",
+    "line_items[0][quantity]": String(params.quantity),
     "line_items[0][price_data][currency]": "gbp",
-    "line_items[0][price_data][unit_amount]": String(params.amountPence),
+    "line_items[0][price_data][unit_amount]": String(params.unitPence),
     "line_items[0][price_data][product_data][name]": params.productName,
     // Required: the door list finds buyers by name, and Checkout only asks
     // for one when told to.

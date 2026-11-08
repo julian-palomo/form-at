@@ -76,19 +76,20 @@ describe("verifyStripeSignature", () => {
 const PARAMS = {
   orderId: "order-1",
   productName: "Form:at 004 · early",
-  amountPence: 800,
+  unitPence: 800,
+  quantity: 3,
   expiresAt: NOW + 1800,
   successUrl: "https://example.com/tickets/success?session_id={CHECKOUT_SESSION_ID}",
   cancelUrl: "https://example.com/events/format-004",
 };
 
 describe("checkoutSessionBody", () => {
-  it("asks for one ticket at the tier's price in GBP, by card, with the buyer's name required", () => {
+  it("asks for the tickets at the tier's unit price in GBP, by card, with the buyer's name required", () => {
     const body = Object.fromEntries(checkoutSessionBody(PARAMS));
     expect(body).toMatchObject({
       mode: "payment",
       "payment_method_types[0]": "card",
-      "line_items[0][quantity]": "1",
+      "line_items[0][quantity]": "3",
       "line_items[0][price_data][currency]": "gbp",
       "line_items[0][price_data][unit_amount]": "800",
       "line_items[0][price_data][product_data][name]": "Form:at 004 · early",

@@ -717,7 +717,7 @@ CREATE TABLE IF NOT EXISTS ticket_orders (
   tier_id           TEXT    NOT NULL REFERENCES ticket_tiers(id),
   email             TEXT,                 -- from Stripe, on payment
   name              TEXT,                 -- from Stripe, on payment
-  amount_pence      INTEGER NOT NULL,     -- the tier's price when the seat was reserved
+  amount_pence      INTEGER NOT NULL,     -- what the order costs: tier price × quantity (quantity below)
   status            TEXT    NOT NULL CHECK (status IN ('pending','paid','expired','refunded')),
   created_at        INTEGER NOT NULL,     -- unix ms
   expires_at        INTEGER NOT NULL,     -- unix ms
@@ -727,8 +727,9 @@ CREATE TABLE IF NOT EXISTS ticket_orders (
 -- Every reservation counts a tier's orders by status.
 CREATE INDEX IF NOT EXISTS idx_ticket_orders_tier_status ON ticket_orders (tier_id, status);
 
--- One ticket per order (`order_id` is UNIQUE), created in the same batch that
--- marks the order paid. The QR token is derived from `id` with
+-- The first version of `tickets`, one per order. The multi-ticket block at
+-- the end of this file rebuilds it as one row per seat; read that block for
+-- what the table is now. The QR token is derived from `id` with
 -- `signTicketToken` (packages/data/src/ticketToken.ts), never stored.
 CREATE TABLE IF NOT EXISTS tickets (
   id            TEXT    PRIMARY KEY,  -- crypto.randomUUID()
@@ -799,3 +800,40 @@ CREATE INDEX IF NOT EXISTS idx_door_sales_event_created ON door_sales (event_id,
 -- Form:at 004's door price: £12. INSERT OR IGNORE, so re-running never resets
 -- a price changed on the page.
 INSERT OR IGNORE INTO door_settings (event_id, price_pence) VALUES ('format-004', 1200);
+
+-- Several tickets per order. `quantity` is how many seats the order holds;
+-- every seat count is a SUM(quantity) over the SEAT_HELD orders
+-- (packages/data/src/tickets.ts), and `amount_pence` is the order's total.
+-- Existing orders get quantity 1, which keeps their totals right.
+--
+-- `tickets` becomes one row per seat: `seq` is the seat's place in its order
+-- (0 to quantity − 1), and UNIQUE (order_id, seq) replaces UNIQUE (order_id),
+-- so a webhook delivered twice still can't create a second ticket for a seat.
+-- SQLite can't drop a constraint, so the table is rebuilt: create the new
+-- shape, copy every ticket as seat 0, drop the old table, rename. Nothing
+-- references `tickets`, so the drop is safe.
+--
+-- Not yet applied to the remote database. Apply these statements one at a
+-- time, in this order. None of them is idempotent; don't re-run them on a
+-- database that has already been migrated:
+-- npx wrangler d1 execute form-at-analytics --remote --command "ALTER TABLE ticket_orders ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE tickets_new (id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES ticket_orders(id), seq INTEGER NOT NULL DEFAULT 0, checked_in_at INTEGER, checked_in_by TEXT, UNIQUE (order_id, seq))"
+-- npx wrangler d1 execute form-at-analytics --remote --command "INSERT INTO tickets_new (id, order_id, seq, checked_in_at, checked_in_by) SELECT id, order_id, 0, checked_in_at, checked_in_by FROM tickets"
+-- npx wrangler d1 execute form-at-analytics --remote --command "DROP TABLE tickets"
+-- npx wrangler d1 execute form-at-analytics --remote --command "ALTER TABLE tickets_new RENAME TO tickets"
+-- Verify:
+-- npx wrangler d1 execute form-at-analytics --remote --command "PRAGMA table_info(tickets)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "PRAGMA table_info(ticket_orders)"
+ALTER TABLE ticket_orders ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1;
+CREATE TABLE tickets_new (
+  id            TEXT    PRIMARY KEY,  -- crypto.randomUUID()
+  order_id      TEXT    NOT NULL REFERENCES ticket_orders(id),
+  seq           INTEGER NOT NULL DEFAULT 0,  -- the seat's place in its order, from 0
+  checked_in_at INTEGER,              -- unix ms; NULL until let in at the door
+  checked_in_by TEXT,                 -- the Access email of whoever checked it in
+  UNIQUE (order_id, seq)
+);
+INSERT INTO tickets_new (id, order_id, seq, checked_in_at, checked_in_by)
+  SELECT id, order_id, 0, checked_in_at, checked_in_by FROM tickets;
+DROP TABLE tickets;
+ALTER TABLE tickets_new RENAME TO tickets;

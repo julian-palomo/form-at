@@ -6,15 +6,22 @@
 // Two rules hold every function here together. Keep both:
 // - Capacity is counted from `ticket_orders`, never cached in a counter. A
 //   seat is held by an order that is `paid`, or `pending` and not yet past
-//   `expires_at` (SEAT_HELD below).
+//   `expires_at` (SEAT_HELD below). An order holds `quantity` seats, so seats
+//   are a SUM(quantity), never a COUNT(*) of orders.
 // - Every state change is one conditional statement (`WHERE status =
 //   'pending'`, `WHERE checked_in_at IS NULL`) whose `meta.changes` says
 //   whether it happened. Never split one into a read followed by a write:
 //   two requests can both pass the read, which is how overselling and
 //   double counting happen.
 
-/** SQL condition for "this order holds a seat". Binds one parameter: now (unix ms). */
+/** SQL condition for "this order holds its seats". Binds one parameter: now (unix ms). */
 const SEAT_HELD = "(status = 'paid' OR (status = 'pending' AND expires_at > ?))";
+
+/**
+ * Most tickets one order can hold. It bounds how many seats one abandoned
+ * checkout keeps out of sale until its hold lapses.
+ */
+export const MAX_TICKETS_PER_ORDER = 10;
 
 export type TicketTier = {
   id: string;
@@ -23,10 +30,12 @@ export type TicketTier = {
   pricePence: number;
   cap: number;
   sortOrder: number;
-  /** Orders paid for in this tier. */
+  /** Tickets paid for in this tier. */
   paid: number;
-  /** Unpaid orders still holding a seat (checkout open). */
+  /** Tickets in unpaid orders still holding their seats (checkout open). */
   held: number;
+  /** Seats nobody holds: cap − paid − held, never below 0. */
+  left: number;
 };
 
 export type ActiveTier = {
@@ -55,8 +64,10 @@ export async function getActiveTier(
   const { results } = await db
     .prepare(
       `SELECT t.id, t.event_id, t.name, t.price_pence, t.cap, t.sort_order,
-         (SELECT COUNT(*) FROM ticket_orders o WHERE o.tier_id = t.id AND o.status = 'paid') AS paid,
-         (SELECT COUNT(*) FROM ticket_orders o WHERE o.tier_id = t.id AND o.status = 'pending' AND o.expires_at > ?) AS held
+         (SELECT COALESCE(SUM(o.quantity), 0) FROM ticket_orders o
+            WHERE o.tier_id = t.id AND o.status = 'paid') AS paid,
+         (SELECT COALESCE(SUM(o.quantity), 0) FROM ticket_orders o
+            WHERE o.tier_id = t.id AND o.status = 'pending' AND o.expires_at > ?) AS held
        FROM ticket_tiers t
        WHERE t.event_id = ?
        ORDER BY t.sort_order`,
@@ -74,9 +85,10 @@ export async function getActiveTier(
       sortOrder: r.sort_order,
       paid: r.paid,
       held: r.held,
+      left: Math.max(0, r.cap - r.paid - r.held),
     }),
   );
-  return { active: tiers.find((t) => t.paid + t.held < t.cap) ?? null, tiers };
+  return { active: tiers.find((t) => t.left > 0) ?? null, tiers };
 }
 
 /** Unpaid holds one connection may have open at once. */
@@ -101,13 +113,16 @@ export type ReservedSeat = {
   orderId: string;
   tierId: string;
   eventId: string;
-  /** The tier's price, copied onto the order; charge exactly this. */
+  quantity: number;
+  /** The tier's price per ticket when the seats were reserved. */
+  unitPence: number;
+  /** unitPence × quantity, copied onto the order; charge exactly this. */
   amountPence: number;
 };
 
 /**
- * Holds one seat in `tierId` by creating a `pending` order, if the tier has a
- * free seat. The only way a pending order is created.
+ * Holds `quantity` seats in `tierId` by creating one `pending` order, if the
+ * tier has that many free seats. The only way a pending order is created.
  *
  * `expiresAt` is when the hold lapses if nobody pays: set it a few minutes
  * after the Stripe Checkout Session's own `expires_at`, so the seat is never
@@ -118,32 +133,49 @@ export type ReservedSeat = {
  * because each abandoned checkout keeps a seat in a tier of 15 for its whole
  * hold. Use `countLiveHoldsForIp` to tell that refusal apart from a full tier.
  *
- * Returns null when the tier is full, doesn't exist, or the hash is at its
- * cap. One INSERT … SELECT whose WHERE counts the tier's held seats and the
- * hash's live holds, so two requests can't both take the last seat or the
- * last allowed hold.
+ * Returns null when the tier has fewer than `quantity` free seats, doesn't
+ * exist, the hash is at its cap, or `quantity` is outside
+ * 1..MAX_TICKETS_PER_ORDER. One INSERT … SELECT whose WHERE sums the tier's
+ * held seats and counts the hash's live holds, so two requests can't both
+ * take the last seats or the last allowed hold.
  */
 export async function reserveSeat(
   db: D1Database,
-  input: { tierId: string; orderId: string; ipHash: string; now: number; expiresAt: number },
+  input: {
+    tierId: string;
+    orderId: string;
+    quantity: number;
+    ipHash: string;
+    now: number;
+    expiresAt: number;
+  },
 ): Promise<ReservedSeat | null> {
+  const { quantity } = input;
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_TICKETS_PER_ORDER) {
+    return null;
+  }
   const result = await db
     .prepare(
-      `INSERT INTO ticket_orders (id, event_id, tier_id, amount_pence, status, created_at, expires_at, ip_hash)
-       SELECT ?, t.event_id, t.id, t.price_pence, 'pending', ?, ?, ?
+      `INSERT INTO ticket_orders
+         (id, event_id, tier_id, quantity, amount_pence, status, created_at, expires_at, ip_hash)
+       SELECT ?, t.event_id, t.id, ?, t.price_pence * ?, 'pending', ?, ?, ?
        FROM ticket_tiers t
        WHERE t.id = ?
-         AND (SELECT COUNT(*) FROM ticket_orders WHERE tier_id = t.id AND ${SEAT_HELD}) < t.cap
+         AND (SELECT COALESCE(SUM(quantity), 0) FROM ticket_orders
+              WHERE tier_id = t.id AND ${SEAT_HELD}) + ? <= t.cap
          AND (SELECT COUNT(*) FROM ticket_orders
               WHERE ip_hash = ? AND status = 'pending' AND expires_at > ?) < ${MAX_LIVE_HOLDS_PER_IP}`,
     )
     .bind(
       input.orderId,
+      quantity,
+      quantity,
       input.now,
       input.expiresAt,
       input.ipHash,
       input.tierId,
       input.now,
+      quantity,
       input.ipHash,
       input.now,
     )
@@ -159,6 +191,8 @@ export async function reserveSeat(
     orderId: input.orderId,
     tierId: input.tierId,
     eventId: order.event_id,
+    quantity,
+    unitPence: order.amount_pence / quantity,
     amountPence: order.amount_pence,
   };
 }
@@ -184,38 +218,44 @@ export async function attachStripeSession(
 }
 
 /**
- * Marks the order paid and creates its ticket, for the verified
- * `checkout.session.completed` webhook only. Never mark an order paid
- * anywhere else.
+ * Marks the order paid and creates its tickets, one per seat (`seq` 0 to
+ * quantity − 1), for the verified `checkout.session.completed` webhook only.
+ * Never mark an order paid anywhere else.
  *
- * Both statements run in one batch (one transaction). The ticket insert
- * selects orders that are `paid`, not just the one this call changed, so a
- * retry repairs an order left paid without a ticket; `tickets.order_id` is
- * UNIQUE, so it can never create a second one.
+ * Every statement runs in one batch (one transaction): the UPDATE, then one
+ * ticket INSERT per possible seat, each of which only matches while its `seq`
+ * is below the order's quantity. The inserts select orders that are `paid`,
+ * not just the one this call changed, so a retry repairs an order left paid
+ * with tickets missing; `UNIQUE (order_id, seq)` means it can never create a
+ * second ticket for the same seat.
  *
- * Returns the new ticket's id when this call created it, and null when the
- * ticket already existed (a webhook delivered twice) or the session is unknown.
+ * Returns the ids of the tickets this call created, in seat order: empty when
+ * they all existed already (a webhook delivered twice) or the session is
+ * unknown.
  */
 export async function confirmOrder(
   db: D1Database,
   input: { stripeSessionId: string; email: string | null; name: string | null; paidAt: number },
-): Promise<string | null> {
-  const ticketId = crypto.randomUUID();
-  const [, insert] = await db.batch([
+): Promise<string[]> {
+  const ticketIds = Array.from({ length: MAX_TICKETS_PER_ORDER }, () => crypto.randomUUID());
+  const [, ...inserts] = await db.batch([
     db
       .prepare(
         `UPDATE ticket_orders SET status = 'paid', email = ?, name = ?, paid_at = ?
          WHERE stripe_session_id = ? AND status = 'pending'`,
       )
       .bind(input.email, input.name, input.paidAt, input.stripeSessionId),
-    db
-      .prepare(
-        `INSERT OR IGNORE INTO tickets (id, order_id)
-         SELECT ?, id FROM ticket_orders WHERE stripe_session_id = ? AND status = 'paid'`,
-      )
-      .bind(ticketId, input.stripeSessionId),
+    ...ticketIds.map((ticketId, seq) =>
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO tickets (id, order_id, seq)
+           SELECT ?, id, ? FROM ticket_orders
+           WHERE stripe_session_id = ? AND status = 'paid' AND quantity > ?`,
+        )
+        .bind(ticketId, seq, input.stripeSessionId, seq),
+    ),
   ]);
-  return insert?.meta.changes === 1 ? ticketId : null;
+  return ticketIds.filter((_, seq) => inserts[seq]?.meta.changes === 1);
 }
 
 /**
@@ -294,12 +334,18 @@ export async function checkIn(
   };
 }
 
+/** One ticket of a paid order: an order of 3 is three rows. */
 export type PaidOrder = {
   orderId: string;
   ticketId: string | null;
+  /** The ticket's place in its order, from 0; null for a paid order whose tickets are missing. */
+  seq: number | null;
+  /** Tickets in the order. */
+  quantity: number;
   name: string | null;
   email: string | null;
   tierName: string;
+  /** The whole order's total, not this ticket's share. */
   amountPence: number;
   paidAt: number | null;
   checkedInAt: number | null;
@@ -309,6 +355,8 @@ export type PaidOrder = {
 type PaidOrderRow = {
   order_id: string;
   ticket_id: string | null;
+  seq: number | null;
+  quantity: number;
   name: string | null;
   email: string | null;
   tier_name: string;
@@ -318,17 +366,21 @@ type PaidOrderRow = {
   checked_in_by: string | null;
 };
 
-/** Every paid order of an event, by buyer name, for the door list and the sales list. */
+/**
+ * Every ticket of every paid order of an event, by buyer name, then order,
+ * then seat, for the door list and the sales list. A paid order with no
+ * ticket rows still appears once, with `ticketId` and `seq` null.
+ */
 export async function listPaidOrders(db: D1Database, eventId: string): Promise<PaidOrder[]> {
   const { results } = await db
     .prepare(
-      `SELECT o.id AS order_id, k.id AS ticket_id, o.name, o.email, t.name AS tier_name,
-         o.amount_pence, o.paid_at, k.checked_in_at, k.checked_in_by
+      `SELECT o.id AS order_id, k.id AS ticket_id, k.seq, o.quantity, o.name, o.email,
+         t.name AS tier_name, o.amount_pence, o.paid_at, k.checked_in_at, k.checked_in_by
        FROM ticket_orders o
        JOIN ticket_tiers t ON t.id = o.tier_id
        LEFT JOIN tickets k ON k.order_id = o.id
        WHERE o.event_id = ? AND o.status = 'paid'
-       ORDER BY o.name COLLATE NOCASE, o.paid_at`,
+       ORDER BY o.name COLLATE NOCASE, o.paid_at, o.id, k.seq`,
     )
     .bind(eventId)
     .all<PaidOrderRow>();
@@ -336,6 +388,8 @@ export async function listPaidOrders(db: D1Database, eventId: string): Promise<P
   return results.map((r) => ({
     orderId: r.order_id,
     ticketId: r.ticket_id,
+    seq: r.seq,
+    quantity: r.quantity,
     name: r.name,
     email: r.email,
     tierName: r.tier_name,
@@ -350,6 +404,8 @@ export type OrderStatus = {
   status: "pending" | "paid" | "expired" | "refunded";
   eventId: string;
   tierName: string;
+  quantity: number;
+  /** The order's total. */
   amountPence: number;
   name: string | null;
 };
@@ -361,7 +417,7 @@ export async function getOrderBySession(
 ): Promise<OrderStatus | null> {
   const row = await db
     .prepare(
-      `SELECT o.status, o.event_id, t.name AS tier_name, o.amount_pence, o.name
+      `SELECT o.status, o.event_id, t.name AS tier_name, o.quantity, o.amount_pence, o.name
        FROM ticket_orders o JOIN ticket_tiers t ON t.id = o.tier_id
        WHERE o.stripe_session_id = ?`,
     )
@@ -370,6 +426,7 @@ export async function getOrderBySession(
       status: OrderStatus["status"];
       event_id: string;
       tier_name: string;
+      quantity: number;
       amount_pence: number;
       name: string | null;
     }>();
@@ -378,6 +435,7 @@ export async function getOrderBySession(
     status: row.status,
     eventId: row.event_id,
     tierName: row.tier_name,
+    quantity: row.quantity,
     amountPence: row.amount_pence,
     name: row.name,
   };
