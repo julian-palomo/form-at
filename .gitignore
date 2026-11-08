@@ -73,3 +73,8 @@ packages/*/storybook-static/
 .claude/settings.local.json
 .claude/agent-memory-local/
 .claude/hooks/tests/.tmp/
+
+# Claude Code worktrees (`claude --worktree <name>`): one checkout per parallel
+# session, each on its own branch. The files inside belong to that branch,
+# never to this one.
+.claude/worktrees/

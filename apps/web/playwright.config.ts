@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import { e2ePort } from "./tests/e2e/_port";
 
-const PORT = 5173;
+// 4200-4699 here, 4700-5199 in apps/admin: clear of the dev servers (5173,
+// 5174) and the previews (4173, 4174), so the suite never reaches a server a
+// person started by hand. Hashed per checkout: see tests/e2e/_port.ts.
+const PORT = e2ePort(4200, 500);
 const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -26,12 +30,14 @@ export default defineConfig({
     { name: "mobile-safari", use: { ...devices["iPhone 14"] } },
   ],
 
-  // Boots the dev server automatically. Uses `pnpm dev` so the test environment
-  // matches local development. For CI you may swap to `pnpm build && pnpm start`.
+  // Boots its own dev server on PORT, the same `vite dev` as `pnpm dev`.
+  // `--strictPort` fails fast instead of drifting to a free port the tests
+  // don't know about; never reusing a server keeps a worktree's suite off a
+  // server another worktree, or a person, started.
   webServer: {
-    command: "pnpm dev",
+    command: `pnpm exec vite dev --port ${PORT} --strictPort`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });
