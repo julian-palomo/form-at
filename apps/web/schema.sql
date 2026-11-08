@@ -759,3 +759,43 @@ INSERT OR IGNORE INTO ticket_tiers (id, event_id, name, price_pence, cap, sort_o
 -- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_ticket_orders_ip_status ON ticket_orders (ip_hash, status)"
 ALTER TABLE ticket_orders ADD COLUMN ip_hash TEXT;
 CREATE INDEX IF NOT EXISTS idx_ticket_orders_ip_status ON ticket_orders (ip_hash, status);
+
+-- Door sales: people who pay at the door (cash, or card on SumUp), counted on
+-- admin /door next to the online buyers. Queries in
+-- apps/admin/app/data/door-sales.ts, the only app that uses them.
+--
+-- `door_settings` holds the night's door price. It can be changed at any time
+-- and records who changed it last; each sale copies the price it was made at
+-- into `door_sales.price_pence`, so expected cash is a SUM over the sales and a
+-- later price change never rewrites an earlier one.
+--
+-- `door_sales` is one row per person. An undo deletes the row (only the
+-- caller's own sale, under a minute old), so the count is always COUNT(*).
+-- Rows written while testing the page before the night are real rows: delete
+-- them with `DELETE FROM door_sales WHERE event_id = 'format-004'`.
+--
+-- Not yet applied to the remote database. Apply one statement at a time:
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS door_settings (event_id TEXT PRIMARY KEY, price_pence INTEGER NOT NULL, updated_at INTEGER, updated_by TEXT)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE TABLE IF NOT EXISTS door_sales (id TEXT PRIMARY KEY, event_id TEXT NOT NULL, method TEXT NOT NULL CHECK (method IN ('cash','card')), price_pence INTEGER NOT NULL, created_at INTEGER NOT NULL, created_by TEXT NOT NULL)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "CREATE INDEX IF NOT EXISTS idx_door_sales_event_created ON door_sales (event_id, created_at)"
+-- npx wrangler d1 execute form-at-analytics --remote --command "INSERT OR IGNORE INTO door_settings (event_id, price_pence) VALUES ('format-004', 1200)"
+CREATE TABLE IF NOT EXISTS door_settings (
+  event_id    TEXT    PRIMARY KEY,
+  price_pence INTEGER NOT NULL,
+  updated_at  INTEGER,             -- unix ms of the last price change; NULL for the seed
+  updated_by  TEXT                 -- the Access email that last changed it
+);
+
+CREATE TABLE IF NOT EXISTS door_sales (
+  id          TEXT    PRIMARY KEY, -- crypto.randomUUID()
+  event_id    TEXT    NOT NULL,
+  method      TEXT    NOT NULL CHECK (method IN ('cash','card')),
+  price_pence INTEGER NOT NULL,    -- the door price when this sale was made
+  created_at  INTEGER NOT NULL,    -- unix ms
+  created_by  TEXT    NOT NULL     -- the Access email that recorded it
+);
+CREATE INDEX IF NOT EXISTS idx_door_sales_event_created ON door_sales (event_id, created_at);
+
+-- Form:at 004's door price: £12. INSERT OR IGNORE, so re-running never resets
+-- a price changed on the page.
+INSERT OR IGNORE INTO door_settings (event_id, price_pence) VALUES ('format-004', 1200);
