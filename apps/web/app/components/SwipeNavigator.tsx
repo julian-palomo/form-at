@@ -7,7 +7,9 @@ import { ABOVE_CHROME_BOTTOM, ABOVE_NAV_BOTTOM } from "~/styles/layout";
 import { Z } from "~/styles/z";
 import { rubberBand } from "~/utils/rubberBand";
 
-const ROUTES = ["/", "/sets", "/events", "/djs"] as const;
+// The same five tabs, in the same order, as NavLinks. A ticket's own page
+// and the success page are under /tickets, so they belong to the last tab.
+const ROUTES = ["/", "/events", "/sets", "/djs", "/tickets"] as const;
 const SWIPE_PX = 80;
 const SWIPE_VX = 0.5;
 const DURATION = 220;
@@ -19,10 +21,9 @@ const DOT_STEP = 10;
 const EDGE_RUBBER_BAND_RATIO = 0.4;
 
 /**
- * The tab a path belongs to, or -1 for a page outside the strip (`/tickets`,
- * a ticket's page, a 404). Those pages take no swipes and show no dots: a
- * swipe there used to count as "left of home" and jump to `/`, which is how a
- * buyer looking at their ticket lost it.
+ * The tab a path belongs to, or -1 for a page outside the strip (a 404).
+ * Such a page takes no swipes and shows no dots: a swipe there used to count
+ * as "left of home" and jump to `/`.
  */
 export function routeIndex(pathname: string): number {
   return ROUTES.findIndex((r) => (r === "/" ? pathname === "/" : pathname.startsWith(r)));

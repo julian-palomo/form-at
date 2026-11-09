@@ -6,9 +6,10 @@ test.describe("navigation", () => {
     test.skip(isMobile, "Desktop nav is hidden on small viewports");
     await gotoAndHydrate(page, "/");
     for (const [label, urlRe] of [
-      ["sets", /\/sets$/],
       ["events", /\/events$/],
+      ["sets", /\/sets$/],
       ["djs", /\/djs$/],
+      ["tickets", /\/tickets$/],
       ["home", /\/$/],
     ] as const) {
       await page.getByRole("link", { name: label, exact: true }).first().click();
@@ -20,11 +21,12 @@ test.describe("navigation", () => {
     test.skip(!isMobile, "BottomNav is mobile-only");
     await gotoAndHydrate(page, "/");
     for (const [label, urlRe] of [
-      ["sets", /\/sets$/],
       ["events", /\/events$/],
+      ["sets", /\/sets$/],
       ["djs", /\/djs$/],
+      ["tickets", /\/tickets$/],
     ] as const) {
-      await page.getByRole("link", { name: label }).first().click();
+      await page.getByRole("link", { name: label, exact: true }).first().click();
       await expect(page).toHaveURL(urlRe);
     }
   });
