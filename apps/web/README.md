@@ -61,9 +61,16 @@ buyer one `/tickets/<token>` link per ticket, from
 in Cloudflare DNS). That page (`routes/tickets/$token.tsx`) verifies the
 token, draws the QR (`components/tickets/TicketQr.tsx`, `uqr`, lazy) inside
 the gold ticket frame (`components/tickets/TicketCard.tsx`) and
-stores the ticket in `store/ticketsSlice.ts`; `/tickets`
-(`routes/tickets/index.tsx`) lists the device's tickets from the store alone,
-so it works offline, and holds the "recover my tickets" form. `sw.ts` leaves
+stores the ticket in `store/ticketsSlice.ts`; its Open Graph tags name the
+event and its banner and nothing from the ticket, so the link previews well
+when sent on. `/tickets`, the fifth tab of the nav
+(`routes/tickets/index.tsx`), lists the device's tickets from the store alone,
+so it works offline, and holds the "recover my tickets" form; with no ticket
+stored it asks the server whether the next event is on sale and says "go on
+sale soon" until it is. Each card's `send to a friend` opens the share modal
+with the ticket's link, and once the share or copy completes the stored
+ticket is marked sent on this device only (`sentAt`): the card dims, the QR
+is covered, and `keep it` undoes it. `sw.ts` leaves
 every `/tickets/…` navigation to the network; the bare `/tickets` is cached
 like any other page, and its HTML carries no tickets. The first time a device
 sees an order paid, `/tickets/success` plays the confetti

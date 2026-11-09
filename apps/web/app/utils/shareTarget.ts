@@ -1,5 +1,5 @@
 import type { DJ } from "@form-at/data/djs";
-import { type Event, getCityForSet, getVenueName } from "@form-at/data/events";
+import { type Event, getCityForSet, getEvent, getVenueName } from "@form-at/data/events";
 import type { MusicSet } from "@form-at/data/sets";
 import { fmtEventDay } from "./fmt";
 
@@ -9,9 +9,12 @@ import { fmtEventDay } from "./fmt";
 // (the playing position) and the set Story video; the DJ and their next
 // night for the DJ Story image.
 //
-//   set   — a set page, /sets/<id>
-//   dj    — a DJ page, /djs/<id>
-//   event — an event page, /events/<id>
+//   set    — a set page, /sets/<id>
+//   dj     — a DJ page, /djs/<id>
+//   event  — an event page, /events/<id>
+//   ticket — a ticket's own page, /tickets/<token>, sent to the friend who
+//            will use it; the token tells ShareModal which stored ticket to
+//            mark sent once the share or copy completes
 export type ShareTarget =
   | { kind: "set"; set: MusicSet; url: string; title: string; text: string }
   | {
@@ -22,7 +25,8 @@ export type ShareTarget =
       title: string;
       text: string;
     }
-  | { kind: "event"; url: string; title: string; text: string };
+  | { kind: "event"; url: string; title: string; text: string }
+  | { kind: "ticket"; token: string; url: string; title: string; text: string };
 
 // Built on a tap, so `window` is there; the default keeps callers short.
 const currentOrigin = () => (typeof window !== "undefined" ? window.location.origin : "");
@@ -62,5 +66,22 @@ export function eventShareTarget(event: Event, origin = currentOrigin()): ShareT
     url: `${origin}/events/${event.id}`,
     title: event.title,
     text: `${event.title} · ${day} · ${getVenueName(event)}`,
+  };
+}
+
+// The link is the ticket: whoever opens it has the QR. Nothing personal in
+// the words, the same as the page's own Open Graph tags.
+export function ticketShareTarget(
+  ticket: { token: string; eventId: string },
+  origin = currentOrigin(),
+): ShareTarget {
+  const event = getEvent(ticket.eventId);
+  const title = `your ticket for ${event?.title ?? ticket.eventId}`;
+  return {
+    kind: "ticket",
+    token: ticket.token,
+    url: `${origin}/tickets/${ticket.token}`,
+    title,
+    text: `${title}. open the link to save it on your phone and show the qr at the door.`,
   };
 }

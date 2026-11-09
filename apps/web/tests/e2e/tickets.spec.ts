@@ -30,7 +30,8 @@ test.describe("tickets", () => {
   test("the tickets page shows an empty device and the recover form", async ({ page }) => {
     await gotoAndHydrate(page, "/tickets");
     await expect(page.getByRole("heading", { name: /your tickets/i })).toBeVisible();
-    await expect(page.getByText(/no tickets on this device yet/i)).toBeVisible();
+    // Sales are off outside Cloudflare, so the empty state says the sale is coming.
+    await expect(page.getByText(/go on sale soon/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /send my tickets/i })).toBeVisible();
   });
 

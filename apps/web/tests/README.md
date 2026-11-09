@@ -47,7 +47,7 @@ tests/
 │   │                  #   components live in packages/ui and are tested there)
 │   ├── utils/         # fmt, appContext, deeplink, installCapability…
 │   ├── data/          # beacon-queue, sets, setsForRoute (the D1-fallback logic), tickets (real SQLite), ticketEmail (Resend request shape)
-│   ├── routes/        # API handlers — api-signal, api-event, api-push-subscribe, api-stripe-webhook (real SQLite); pages — dj-detail, event-detail (page order, bracket actions), ticket-success (celebration once per order)
+│   ├── routes/        # API handlers — api-signal, api-event, api-push-subscribe, api-stripe-webhook (real SQLite); pages — dj-detail, event-detail (page order, bracket actions), ticket-success (celebration once per order), ticket-page-head (Open Graph tags without personal data)
 │   └── scripts/       # build scripts (optimize-images, generate-peaks)
 ├── fixtures/          # binary test inputs (mediarecorder-fragmented.mp4: a real Chrome recording, cut after 2 fragments)
 ├── e2e/
@@ -60,7 +60,7 @@ tests/
 │   ├── csp-violations.spec.ts # Zero CSP violations on the golden path; allowed hosts reachable
 │   ├── story-video.spec.ts # Story video recorder in a real browser (harness page, no UI)
 │   ├── story-picker.spec.ts # ?story=on entry, install gate, picker (zoomed strip from fine peaks, no audio mid-drag), create → share (Pixel 7; real recording on macOS)
-│   ├── tickets.spec.ts     # Sales off outside Cloudflare: no buy block; /tickets/success handles an unknown session; /tickets empty state; a bad token is a 404
+│   ├── tickets.spec.ts     # Sales off outside Cloudflare: no buy block; /tickets/success handles an unknown session; /tickets empty state says the sale is coming; a bad token is a 404
 │   ├── _helpers.ts         # shared gotoAndHydrate helper, not a spec
 │   └── _port.ts            # the per-checkout dev-server port playwright.config.ts boots on
 └── setup.ts          # jest-dom matchers, jsdom HTMLMediaElement stubs (skipped in `// @vitest-environment node` files)

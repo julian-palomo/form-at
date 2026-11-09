@@ -302,7 +302,9 @@ describe("loadTicketPage", () => {
   it("answers null for a forged token, an unknown ticket, or when sales are off", async () => {
     const [ticketId] = await pay("cs_test_page");
     const token = await signTicketToken(ticketId ?? "", SIGNING_SECRET);
-    expect(await loadTicketPage(env, `${token.slice(0, -1)}A`)).toBeNull();
+    // A last character that differs from the real one, whatever it is.
+    const forged = `${token.slice(0, -1)}${token.endsWith("A") ? "B" : "A"}`;
+    expect(await loadTicketPage(env, forged)).toBeNull();
     expect(
       await loadTicketPage(env, await signTicketToken("not-a-ticket", SIGNING_SECRET)),
     ).toBeNull();

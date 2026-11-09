@@ -1,3 +1,4 @@
+import { getEvent } from "@form-at/data/events";
 import { PageTitle } from "@form-at/ui";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect } from "react";
@@ -38,14 +39,22 @@ export const Route = createFileRoute("/tickets/$token")({
     if (!ticket) throw notFound();
     return { ticket };
   },
-  head: () =>
-    pageHead({
-      title: "Your ticket",
-      description: "Your Form:at ticket.",
+  // The tags a messaging app shows when the link is sent to a friend: the
+  // event's name and banner, nothing from the ticket itself (no name, no
+  // QR, no token: `path` is the bare list). The banner is the event page's,
+  // generated at build by scripts/generate-og.ts.
+  head: ({ loaderData }) => {
+    const ticket = loaderData?.ticket;
+    const event = ticket ? getEvent(ticket.eventId) : undefined;
+    return pageHead({
+      title: ticket ? `your ticket for ${ticket.eventTitle}` : "Your ticket",
+      description: "open the link to save the ticket on your phone and show the qr at the door.",
       path: "/tickets",
+      image: event?.flyer ? `/og/events/${event.id}.jpg` : undefined,
       noindex: true,
       noReferrer: true,
-    }),
+    });
+  },
   component: TicketPage,
 });
 
@@ -67,8 +76,8 @@ function TicketPage() {
           </p>
         ) : (
           <p className="text-sm sm:text-base text-grey leading-relaxed mb-6">
-            show this qr at the door. it's scanned once, so don't share it with anyone who isn't
-            coming in on it. it's saved on this device now: no signal needed.
+            show this qr at the door. it's scanned once, so only send it to the friend who's coming
+            in on it. it's saved on this device now: no signal needed.
           </p>
         )}
         <Link

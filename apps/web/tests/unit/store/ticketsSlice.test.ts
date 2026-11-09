@@ -60,6 +60,24 @@ describe("ticketsSlice", () => {
     expect(list.map((t) => t.token)).toEqual(["a", "b", "c"]);
   });
 
+  it("marks a ticket sent and keeps it again, across a reload", async () => {
+    useStore.getState().addTickets([ticket("a", 0), ticket("b", 1)]);
+    useStore.getState().markTicketSent("a", 1234);
+    useStore.getState().markTicketSent("unknown");
+    expect(useStore.getState().tickets.a?.sentAt).toBe(1234);
+    expect(useStore.getState().tickets.b?.sentAt).toBeUndefined();
+    expect(useStore.getState().tickets.unknown).toBeUndefined();
+
+    const saved = localStorage.getItem("format-player") ?? "";
+    useStore.setState({ tickets: {} });
+    localStorage.setItem("format-player", saved);
+    await useStore.persist.rehydrate();
+    expect(useStore.getState().tickets.a?.sentAt).toBe(1234);
+
+    useStore.getState().keepTicket("a");
+    expect(useStore.getState().tickets.a?.sentAt).toBeNull();
+  });
+
   it("remembers a celebrated checkout session once, across a reload", async () => {
     useStore.getState().markCelebrated("cs_test_a");
     useStore.getState().markCelebrated("cs_test_a");

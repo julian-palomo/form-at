@@ -28,11 +28,17 @@ const rowClass =
 const sectionLabelClass = "text-xs text-grey/60 tracking-widest mb-2";
 
 // The modal's subject row and accessible name, per kind of target.
-const SUBJECT_LABEL: Record<ShareTarget["kind"], string> = { set: "set", dj: "dj", event: "event" };
+const SUBJECT_LABEL: Record<ShareTarget["kind"], string> = {
+  set: "set",
+  dj: "dj",
+  event: "event",
+  ticket: "ticket",
+};
 const ARIA_LABEL: Record<ShareTarget["kind"], string> = {
   set: "Share set",
   dj: "Share DJ",
   event: "Share event",
+  ticket: "Send ticket",
 };
 
 export function ShareModal() {
@@ -41,6 +47,7 @@ export function ShareModal() {
   const setToast = useStore((s) => s.setToast);
   const nowPlaying = useStore((s) => s.nowPlaying);
   const openDjStory = useStore((s) => s.openDjStory);
+  const markTicketSent = useStore((s) => s.markTicketSent);
 
   // ShareModal is mounted once at the root, so this reads the landing URL:
   // a later client-side navigation drops `?story=on` from it.
@@ -65,10 +72,18 @@ export function ShareModal() {
   const isWaIntent = waHref.startsWith("intent:");
   const isTgIntent = tgHref.startsWith("intent:");
 
+  // A ticket is marked sent once its link has left this modal: the copy
+  // landed, the share sheet closed without an error, or whatsapp / telegram
+  // opened. That's all the browser reports, so the card can undo it.
+  const markSent = () => {
+    if (shareTarget.kind === "ticket") markTicketSent(shareTarget.token);
+  };
+
   const copy = async (t?: number) => {
     try {
       await navigator.clipboard.writeText(urlAt(t));
       setToast("link_copied");
+      markSent();
     } catch {
       setToast("share_unavailable");
     }
@@ -78,9 +93,15 @@ export function ShareModal() {
   const shareViaApps = async () => {
     try {
       await navigator.share({ title, text, url });
+      markSent();
     } catch {
       // user cancelled or share failed — fall through silently
     }
+    closeShareModal();
+  };
+
+  const sendViaLink = () => {
+    markSent();
     closeShareModal();
   };
 
@@ -172,7 +193,7 @@ export function ShareModal() {
               href={waHref}
               target={isWaIntent ? undefined : "_blank"}
               rel={isWaIntent ? undefined : "noopener noreferrer"}
-              onClick={closeShareModal}
+              onClick={sendViaLink}
               className={rowClass}
             >
               <BracketLabel>whatsapp</BracketLabel>
@@ -181,7 +202,7 @@ export function ShareModal() {
               href={tgHref}
               target={isTgIntent ? undefined : "_blank"}
               rel={isTgIntent ? undefined : "noopener noreferrer"}
-              onClick={closeShareModal}
+              onClick={sendViaLink}
               className={rowClass}
             >
               <BracketLabel>telegram</BracketLabel>

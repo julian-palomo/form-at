@@ -1,6 +1,7 @@
 import { getEvent } from "@form-at/data/events";
 import { BracketLabel } from "@form-at/ui";
 import { Link } from "@tanstack/react-router";
+import { useFirstLoad } from "~/hooks/useFirstLoad";
 import { useStore, useStoreHydrated } from "~/store";
 
 // The home page's way into `/tickets`: shown while this device holds a ticket
@@ -14,6 +15,7 @@ function today(): string {
 
 export function YourTicketsLink({ className }: { className?: string }) {
   const hydrated = useStoreHydrated();
+  const isFirstLoad = useFirstLoad();
   const tickets = useStore((s) => s.tickets);
   if (!hydrated) return null;
 
@@ -34,9 +36,13 @@ export function YourTicketsLink({ className }: { className?: string }) {
           .toLowerCase()}`
       : "your tickets";
 
+  // Fades in like the install slot below it (InstallAppButton): both appear
+  // after hydration, and a link that pops in beside a fading row jars.
   return (
-    <Link to="/tickets" preload="intent" className={className}>
-      <BracketLabel>{label}</BracketLabel>
-    </Link>
+    <div className={isFirstLoad ? "animate-slow-fade-in" : "animate-fade-in"}>
+      <Link to="/tickets" preload="intent" className={className}>
+        <BracketLabel>{label}</BracketLabel>
+      </Link>
+    </div>
   );
 }

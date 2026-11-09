@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createJSONStorage } from "zustand/middleware";
 import { ShareModal } from "~/components/ShareModal";
 import { useStore } from "~/store";
-import { djShareTarget, eventShareTarget, setShareTarget } from "~/utils/shareTarget";
+import {
+  djShareTarget,
+  eventShareTarget,
+  setShareTarget,
+  ticketShareTarget,
+} from "~/utils/shareTarget";
 
 const testSet: MusicSet = {
   id: "test-set",
@@ -108,6 +113,68 @@ describe("ShareModal", () => {
     });
     rerender(<ShareModal />);
     expect(screen.getByRole("button", { name: /\[ apps \]/ })).toBeInTheDocument();
+  });
+
+  it("marks a ticket sent once its link is copied, and only then", async () => {
+    const token =
+      "aaaaaaaa-0000-4000-8000-000000000001.q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c";
+    useStore.setState({
+      tickets: {
+        [token]: {
+          token,
+          eventId: "format-004",
+          tierName: "early",
+          name: null,
+          seq: 0,
+          quantity: 1,
+          storedAt: 1,
+        },
+      },
+      shareTarget: ticketShareTarget({ token, eventId: "format-004" }, "https://example.test"),
+    });
+    const user = userEvent.setup();
+    render(<ShareModal />);
+    expect(screen.getByRole("dialog", { name: "Send ticket" })).toBeInTheDocument();
+    expect(screen.getByText(/your ticket for Form:at 004/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /whatsapp/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining(encodeURIComponent(`https://example.test/tickets/${token}`)),
+    );
+    expect(useStore.getState().tickets[token]?.sentAt).toBeUndefined();
+
+    await user.click(screen.getByRole("button", { name: /copy_link/ }));
+    await waitFor(() => expect(useStore.getState().shareTarget).toBeNull());
+    if (useStore.getState().toast === "link_copied") {
+      expect(useStore.getState().tickets[token]?.sentAt).toEqual(expect.any(Number));
+    } else {
+      // The clipboard refused: nothing left the modal, so nothing is marked.
+      expect(useStore.getState().tickets[token]?.sentAt).toBeUndefined();
+    }
+  });
+
+  it("marks a ticket sent when whatsapp opens", async () => {
+    const token =
+      "aaaaaaaa-0000-4000-8000-000000000002.q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c";
+    useStore.setState({
+      tickets: {
+        [token]: {
+          token,
+          eventId: "format-004",
+          tierName: "early",
+          name: null,
+          seq: 0,
+          quantity: 1,
+          storedAt: 1,
+        },
+      },
+      shareTarget: ticketShareTarget({ token, eventId: "format-004" }, "https://example.test"),
+    });
+    render(<ShareModal />);
+    const whatsapp = screen.getByRole("link", { name: /whatsapp/ });
+    // jsdom doesn't navigate; the click handler is what's under test.
+    fireEvent.click(whatsapp);
+    expect(useStore.getState().tickets[token]?.sentAt).toEqual(expect.any(Number));
+    expect(useStore.getState().shareTarget).toBeNull();
   });
 
   it("triggers a toast and closes the modal on copy_link click", async () => {

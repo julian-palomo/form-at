@@ -2,11 +2,15 @@ import { BracketLabel, cn } from "@form-at/ui";
 
 import { Link, useRouterState } from "@tanstack/react-router";
 
+// The five tabs, in the order of the swipe strip (SwipeNavigator's ROUTES):
+// sets in the centre, tickets always last and always shown, so the way to a
+// bought ticket is the same whether or not this device holds one.
 const links = [
   { to: "/", label: "home", exact: true },
-  { to: "/sets", label: "sets" },
   { to: "/events", label: "events" },
+  { to: "/sets", label: "sets" },
   { to: "/djs", label: "djs" },
+  { to: "/tickets", label: "tickets" },
 ] as const;
 
 interface NavLinksProps {
