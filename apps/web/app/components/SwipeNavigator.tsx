@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useDrag } from "@use-gesture/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavReady } from "~/hooks/useNavReady";
 import { useStore } from "~/store";
 import { ABOVE_CHROME_BOTTOM, ABOVE_NAV_BOTTOM } from "~/styles/layout";
@@ -18,7 +18,13 @@ const DOT_STEP = 10;
 // enough to read as "edge", restrained enough not to look like navigation.
 const EDGE_RUBBER_BAND_RATIO = 0.4;
 
-function routeIndex(pathname: string): number {
+/**
+ * The tab a path belongs to, or -1 for a page outside the strip (`/tickets`,
+ * a ticket's page, a 404). Those pages take no swipes and show no dots: a
+ * swipe there used to count as "left of home" and jump to `/`, which is how a
+ * buyer looking at their ticket lost it.
+ */
+export function routeIndex(pathname: string): number {
   return ROUTES.findIndex((r) => (r === "/" ? pathname === "/" : pathname.startsWith(r)));
 }
 
@@ -29,6 +35,13 @@ export function SwipeNavigator() {
   const navReady = useNavReady();
   const [offset, setOffset] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  // The dots fade in with the bottom nav they sit above: opacity 0 on the
+  // first paint (SSR and client agree), 1 once mounted, the same transition
+  // and duration as BottomNav so the two read as one piece of chrome.
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    setVisible(true);
+  }, []);
   const busy = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dotsIndicatorRef = useRef<HTMLDivElement>(null);
@@ -122,7 +135,7 @@ export function SwipeNavigator() {
         setTimeout(() => setTransitioning(false), DURATION);
       }
     },
-    { axis: "x", filterTaps: true },
+    { axis: "x", filterTaps: true, enabled: idx >= 0 },
   );
 
   // Dots sit above the chrome — nav alone when no track is loaded, nav +
@@ -164,23 +177,30 @@ export function SwipeNavigator() {
         </div>
       </div>
 
-      {/* Page position dots — mobile only */}
-      <div
-        className={`sm:hidden fixed left-0 right-0 flex justify-center ${Z.swipeIndicator} pointer-events-none mb-4`}
-        style={{ bottom: dotsBottom, transition: "bottom 300ms ease-in-out" }}
-      >
-        <div className="relative flex items-center gap-1.5">
-          {ROUTES.map((_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: ROUTES is static
-            <div key={i} className="w-1 h-0.5 bg-purple" />
-          ))}
-          <div
-            ref={dotsIndicatorRef}
-            className="absolute w-1 h-0.5 bg-gold left-0 top-0"
-            style={{ transform: `translateX(${idx * DOT_STEP}px)` }}
-          />
+      {/* Page position dots — mobile only, and only on the four tabs */}
+      {idx >= 0 && (
+        <div
+          className={`sm:hidden fixed left-0 right-0 flex justify-center ${Z.swipeIndicator} pointer-events-none mb-4`}
+          style={{
+            bottom: dotsBottom,
+            opacity: visible ? 1 : 0,
+            transition: "bottom 300ms ease-in-out, opacity 0.8s ease-out",
+          }}
+          suppressHydrationWarning
+        >
+          <div className="relative flex items-center gap-1.5">
+            {ROUTES.map((_, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: ROUTES is static
+              <div key={i} className="w-1 h-0.5 bg-purple" />
+            ))}
+            <div
+              ref={dotsIndicatorRef}
+              className="absolute w-1 h-0.5 bg-gold left-0 top-0"
+              style={{ transform: `translateX(${idx * DOT_STEP}px)` }}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
