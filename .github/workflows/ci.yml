@@ -224,6 +224,18 @@ jobs:
       # with "Could not get lock /var/lib/dpkg/lock-frontend". Each failed
       # attempt therefore kills any leftover `apt-get`/`dpkg`, and
       # `dpkg --configure -a` repairs a package interrupted mid-install.
+      # The runner image lists `azure.archive.ubuntu.com` first in
+      # /etc/apt/apt-mirrors.txt and the canonical archive after it. Dropping
+      # the Azure line makes apt download from the canonical archive; the
+      # guard leaves the file alone when no other mirror is listed.
+      - name: Skip the Azure apt mirror
+        run: |
+          f=/etc/apt/apt-mirrors.txt
+          if [ -f "$f" ] && grep -v 'azure\.archive\.ubuntu\.com' "$f" | grep -q 'ubuntu'; then
+            sudo sed -i '/azure\.archive\.ubuntu\.com/d' "$f"
+          fi
+          cat "$f" || true
+
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 20
