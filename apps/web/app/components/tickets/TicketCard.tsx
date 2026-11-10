@@ -53,7 +53,6 @@ export function TicketCard({ ticket }: { ticket: TicketCardTicket }) {
   const rows: Array<[string, string]> = [
     ...(event ? ([["venue", event.venue]] as Array<[string, string]>) : []),
     ["tier", ticket.tierName],
-    ...(ticket.name ? ([["name", ticket.name]] as Array<[string, string]>) : []),
   ];
 
   return (
@@ -107,6 +106,11 @@ export function TicketCard({ ticket }: { ticket: TicketCardTicket }) {
         </div>
         <div aria-hidden="true" className="w-full border-t border-dashed border-gold/40" />
         <div className="space-y-1 w-full">
+          {/* The buyer's name leads the facts and is the one the door reads
+              against the list, so it is larger and white. */}
+          {ticket.name && (
+            <TerminalRow label="name" value={ticket.name} className="text-lg text-white mb-2" />
+          )}
           {rows.map(([rowLabel, value]) => (
             <TerminalRow key={rowLabel} label={rowLabel} value={value} />
           ))}
