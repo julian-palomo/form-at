@@ -116,6 +116,7 @@ describe("TicketsView", () => {
     await user.click(await screen.findByRole("button", { name: /send to a friend/ }));
     expect(useStore.getState().shareTarget).toMatchObject({ kind: "ticket", token: TOKEN_A });
     expect(screen.queryByTestId("ticket-sent-cover")).toBeNull();
+    expect(screen.queryByText(/whoever scans it first gets in/)).toBeNull();
 
     // What ShareModal does once the link has left it.
     useStore.getState().markTicketSent(TOKEN_A);
@@ -125,6 +126,37 @@ describe("TicketsView", () => {
     await user.click(screen.getByRole("button", { name: /keep it/ }));
     expect(screen.queryByTestId("ticket-sent-cover")).toBeNull();
     expect(useStore.getState().tickets[TOKEN_A]?.sentAt).toBeNull();
+  });
+
+  it("fills the screen with the QR on tap and closes on the next tap", async () => {
+    useStore.getState().addTickets([
+      {
+        token: TOKEN_A,
+        eventId: "format-004",
+        tierName: "early",
+        name: null,
+        seq: 0,
+        quantity: 1,
+        storedAt: 1,
+      },
+    ]);
+    render(<TicketsView />);
+    const user = userEvent.setup();
+    const fullscreen = () => screen.queryByRole("dialog", { name: /ticket QR code, full screen/ });
+    expect(fullscreen()).toBeNull();
+
+    await user.click(await screen.findByRole("button", { name: /show the QR code full screen/ }));
+    expect(fullscreen()).toHaveAttribute("open");
+    expect(fullscreen()).toHaveTextContent("ticket · tap to close");
+
+    await user.click(screen.getByRole("button", { name: /tap to close/ }));
+    expect(fullscreen()).toBeNull();
+
+    // A sent ticket's QR is covered, so it can't be enlarged either.
+    useStore.getState().markTicketSent(TOKEN_A);
+    expect(
+      await screen.findByRole("button", { name: /show the QR code full screen/ }),
+    ).toBeDisabled();
   });
 
   it("answers the recover form the same way whatever the server matched", async () => {

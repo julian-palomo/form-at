@@ -64,8 +64,9 @@ sends), "Form:at — Glasgow", the site and the Instagram. The sending address
 holds no mailbox, so the email's reply-to is the collective's Gmail address
 (`TICKET_EMAIL_REPLY_TO`). That page (`routes/tickets/$token.tsx`) verifies the
 token, draws the QR (`components/tickets/TicketQr.tsx`, `uqr`, lazy) inside
-the gold ticket frame (`components/tickets/TicketCard.tsx`) and
-stores the ticket in `store/ticketsSlice.ts`; its Open Graph tags name the
+the gold ticket frame (`components/tickets/TicketCard.tsx`; a tap on the QR
+fills the screen with it, white edge to edge, for the scanner in a dark
+club) and stores the ticket in `store/ticketsSlice.ts`; its Open Graph tags name the
 event and its banner and nothing from the ticket, so the link previews well
 when sent on. `/tickets`, the fifth tab of the nav
 (`routes/tickets/index.tsx`), lists the device's tickets from the store alone,
