@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtDate, fmtDuration, fmtEventDay, parseDuration } from "~/utils/fmt";
+import { fmtDate, fmtDuration, fmtEventDay, fmtNightLine, parseDuration } from "~/utils/fmt";
 
 describe("fmtEventDay", () => {
   it("formats a calendar date as short weekday + DD.MM", () => {
@@ -9,6 +9,25 @@ describe("fmtEventDay", () => {
 
   it("returns anything that isn't YYYY-MM-DD unchanged", () => {
     expect(fmtEventDay("tbc")).toBe("tbc");
+  });
+});
+
+describe("fmtNightLine", () => {
+  it("reads the day, the venue's name and the start time, in lowercase", () => {
+    expect(
+      fmtNightLine({
+        date: "2026-12-05",
+        venue: "Stereo, City Centre, Glasgow",
+        runtime: "23:00 — 04:00",
+      }),
+    ).toBe("sat 5 dec · stereo · 23:00");
+  });
+
+  it("leaves out a part it can't read", () => {
+    expect(fmtNightLine({ date: "2026-07-24", venue: "Seafield", runtime: "very late" })).toBe(
+      "fri 24 jul · seafield",
+    );
+    expect(fmtNightLine({ date: "tbc", venue: "", runtime: "" })).toBe("tbc");
   });
 });
 

@@ -81,7 +81,7 @@ describe("fetchInstallFunnel", () => {
     expect(result).toMatchObject({ shown: 10, accepted: 4, dismissed: 6, conversionRate: 0.4 });
   });
 
-  it("counts install_app's instructions opens as their own entry point, outside the rate", async () => {
+  it("counts install_the_app's instructions opens as their own entry point, outside the rate", async () => {
     const { db, queries } = createFakeD1([
       totalsRoute([
         { event_type: "install_prompt_shown", n: 10 },

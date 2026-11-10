@@ -2,7 +2,7 @@ type IconProps = { className?: string };
 
 // Material Symbols `install_mobile` (a phone with a down-arrow), Outlined,
 // weight 400 — the same set and style as InstallIcon's `install_desktop`, so
-// the two read as one pair. The phone one goes on the [ install_app ] CTA,
+// the two read as one pair. The phone one goes on the [ install_the_app ] CTA,
 // which mostly shows on phones; the monitor stays in the desktop install
 // hint, where it matches the address-bar glyph. Not DownloadIcon: the floppy
 // means "save this set offline".
