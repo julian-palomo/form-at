@@ -1,5 +1,6 @@
 import { AUDIO_ORIGIN } from "@form-at/data/sets";
 import { createStartHandler, defaultStreamHandler } from "@tanstack/react-start/server";
+import { isStaticAssetPath } from "~/utils/staticAssetPath";
 
 const handler = createStartHandler({ handler: defaultStreamHandler });
 
@@ -58,7 +59,9 @@ export default {
   async fetch(request: Request, env: { DB: D1Database; ASSETS: Fetcher } | undefined) {
     const { pathname } = new URL(request.url);
 
-    if (env?.ASSETS && /\.[a-z0-9]+$/i.test(pathname)) {
+    // Files under public/ come from the asset layer; everything else,
+    // ticket pages included, is rendered here (see isStaticAssetPath).
+    if (env?.ASSETS && isStaticAssetPath(pathname)) {
       return env.ASSETS.fetch(request);
     }
 
