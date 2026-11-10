@@ -24,10 +24,12 @@ test.describe("navigation", () => {
       ["events", /\/events$/],
       ["sets", /\/sets$/],
       ["djs", /\/djs$/],
+      // The bar shows `tix`; the link's accessible name is still `tickets`.
       ["tickets", /\/tickets$/],
     ] as const) {
       await page.getByRole("link", { name: label, exact: true }).first().click();
       await expect(page).toHaveURL(urlRe);
     }
+    await expect(page.locator("nav").filter({ visible: true }).getByText("tix")).toBeVisible();
   });
 });

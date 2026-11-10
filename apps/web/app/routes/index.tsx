@@ -1,15 +1,15 @@
-import { BracketLabel } from "@form-at/ui";
+import { cn } from "@form-at/ui";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { BookingsButton } from "~/components/BookingsButton";
+import { type CSSProperties, useEffect, useState } from "react";
 import { ConsoleWriter } from "~/components/ConsoleWriter";
-import { InstallAppButton } from "~/components/InstallAppButton";
 import { JsonLd } from "~/components/JsonLd";
 import { PageLayout } from "~/components/PageLayout";
-import { PushOptInCta } from "~/components/PushOptInCta";
-import { SocialLink } from "~/components/SocialLink";
-import { YourTicketsLink } from "~/components/tickets/YourTicketsLink";
+import { HomeCta } from "~/components/home/HomeCta";
+import { HomeLinks } from "~/components/home/HomeLinks";
+import { NightHome } from "~/components/home/NightHome";
 import { useFirstLoad } from "~/hooks/useFirstLoad";
+import { type HomeNight, useHomeNight } from "~/hooks/useHomeNight";
+import { useTrackEvent } from "~/hooks/useTrackEvent";
 import { useTypedOnce } from "~/hooks/useTypedOnce";
 import { useStore } from "~/store";
 import { pageHead } from "~/utils/head";
@@ -28,20 +28,70 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+// The home page has two layouts, picked by useHomeNight: the night layout
+// (NightHome) while the next night's tickets are on sale or this device
+// holds one, and the listening layout (the manifesto and the play button)
+// the rest of the time. Both end in the same link rows (HomeLinks). While
+// the hook is still `pending` the page is empty under the header, so
+// nothing is typed and then replaced.
 function Home() {
-  const isFirstLoading = useTypedOnce("home");
+  const night = useHomeNight();
+
+  return (
+    <PageLayout fitBottom>
+      <JsonLd data={organizationLd()} />
+      {night.state !== "pending" && <HomeBody night={night} />}
+    </PageLayout>
+  );
+}
+
+function HomeBody({ night }: { night: Exclude<HomeNight, { state: "pending" }> }) {
   const isFirstLoad = useFirstLoad();
 
   // Opacity-transition fade-in to avoid the appear → disappear → fade flash
   // the previous keyframe-on-mount approach caused (full diagnosis in
   // BottomNav.tsx). Unlike the chrome components, Home *does* remount on
   // navigation back to /, so we still honour the first-load gating:
-  // 5s on the user's very first visit, 0.6s on subsequent returns.
+  // 5s on the user's very first visit, 0.6s on subsequent returns. The
+  // state lives here, not in Home, so a body that mounts late (after the
+  // sale's answer) still starts at opacity 0 and fades.
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     setVisible(true);
   }, []);
   const fadeDuration = isFirstLoad ? "5s" : "0.6s";
+  const fade: CSSProperties = {
+    opacity: visible ? 1 : 0,
+    transition: `opacity ${fadeDuration} ease-out`,
+  };
+
+  return (
+    // The night layout is taller, so above phone width it gives up the
+    // listening layout's vertical padding to keep its button on screen.
+    <div
+      className={cn(
+        "flex flex-col justify-start sm:justify-center",
+        night.state === "night" ? "sm:py-2" : "sm:py-16",
+      )}
+    >
+      {night.state === "night" ? (
+        <NightHome
+          event={night.event}
+          ticketCount={night.ticketCount}
+          style={fade}
+          pulseDelay={fadeDuration}
+        />
+      ) : (
+        <ListeningHome style={fade} pulseDelay={fadeDuration} />
+      )}
+      <HomeLinks style={fade} />
+    </div>
+  );
+}
+
+function ListeningHome({ style, pulseDelay }: { style: CSSProperties; pulseDelay: string }) {
+  const isFirstLoading = useTypedOnce("home");
+  const trackEvent = useTrackEvent();
 
   const nowPlaying = useStore((s) => s.nowPlaying);
   const isPlaying = useStore((s) => s.isPlaying);
@@ -55,83 +105,29 @@ function Home() {
   // from the tap, so the user gesture survives for audio.play().
   const listenSet = nowPlaying ?? latestSet;
   const handleListenClick = () => {
+    trackEvent("home_play_click");
     if (listenSet) playTrack(listenSet);
   };
   const listenLabel = !nowPlaying ? "play_latest" : isPlaying ? "pause" : "resume_signal";
 
   return (
-    <PageLayout fitBottom>
-      <JsonLd data={organizationLd()} />
-      <div className="flex flex-col justify-start sm:justify-center sm:py-16">
-        {/* On phones every gap from here to the install slot, and the
-            manifesto (fitToHeight), shrinks on a short screen so play, the
-            socials and install_app stay above the bottom chrome, mini player
-            included: the --fit-* values in global.css. From about 800px of
-            height they're the old fixed values. */}
-        <div className="space-y-2 mb-(--fit-gap) sm:mb-12 min-h-[20dvh]">
-          <ConsoleWriter isFirstLoading={isFirstLoading} fitToHeight>
-            {mainText}
-          </ConsoleWriter>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleListenClick}
-          className="flex items-center justify-center gap-4 self-center w-full sm:px-24 border-2 border-grey/20 px-6 py-4 text-sm sm:text-base text-grey hover:border-purple hover:text-white hover:cursor-pointer transition-colors shadow-[0_0_15px_rgba(197,133,56,0.2)] hover:shadow-[0_0_25px_rgba(197,133,56,0.4)]"
-          style={{
-            opacity: visible ? 1 : 0,
-            // Opacity transition for fade-in, keyframe animation for the
-            // border pulse — they're independent properties so they coexist
-            // cleanly. The pulse waits out the fade by matching the
-            // animation-delay to the fade duration so the user reads the
-            // text before the border starts breathing.
-            transition: `opacity ${fadeDuration} ease-out`,
-            animation: `border-pulse 2s ease-in-out ${fadeDuration} infinite`,
-          }}
-          suppressHydrationWarning
-        >
-          <span className="text-gold">›</span>
-          <span>{listenLabel}</span>
-        </button>
-
-        <div
-          className="flex items-center justify-center gap-10 my-(--fit-gap) sm:my-8"
-          style={{
-            opacity: visible ? 1 : 0,
-            transition: `opacity ${fadeDuration} ease-out`,
-          }}
-          suppressHydrationWarning
-        >
-          <SocialLink
-            href="https://www.instagram.com/form.at_glasgow/"
-            androidPackage="com.instagram.android"
-            className="text-sm text-grey hover:text-white transition-colors tracking-widest"
-          >
-            <BracketLabel>instagram</BracketLabel>
-          </SocialLink>
-          <BookingsButton className="text-sm text-grey hover:text-white transition-colors tracking-widest cursor-pointer" />
-        </div>
-
-        {/* One slot, two display modes: a browser tab gets [ install_app ]
-            (InstallAppButton; nothing on a desktop browser that can't
-            install), the installed app gets notify_me (PushOptInCta) while
-            the Push API is there and the ask is unspent. Below the socials
-            so neither competes with the play button. */}
-        {/* Pulled up by half the socials gap (16px of 32 at full size), so
-            the two rows can't overlap when the gap shrinks. Gone when both
-            render nothing (the installed app with notify_me spent): empty, its
-            margins would still be space the page can scroll by. No bottom
-            margin on phones: PageLayout's fitBottom already clears the chrome
-            and the swipe dots. */}
-        <div className="flex flex-col items-center gap-3 -mt-[calc(var(--fit-gap)/2)] sm:-mt-4 sm:mb-8 empty:hidden">
-          {/* Only while this device holds a ticket for a night still to come:
-              its own row, since a third bracket beside the socials overflows
-              a phone. */}
-          <YourTicketsLink className="text-sm text-grey hover:text-white transition-colors tracking-widest" />
-          <InstallAppButton />
-          <PushOptInCta />
-        </div>
+    <>
+      {/* On phones every gap from here to the install slot, and the
+          manifesto (fitToHeight), shrinks on a short screen so play, the
+          links and install_the_app stay above the bottom chrome, mini player
+          included: the --fit-* values in global.css. From about 800px of
+          height they're the old fixed values. */}
+      <div className="space-y-2 mb-(--fit-gap) sm:mb-12 min-h-[20dvh]">
+        <ConsoleWriter isFirstLoading={isFirstLoading} fitToHeight>
+          {mainText}
+        </ConsoleWriter>
       </div>
-    </PageLayout>
+
+      {/* The fade and the border pulse are independent properties, so they
+          coexist; the pulse waits out the fade (pulseDelay). */}
+      <HomeCta style={style} pulseDelay={pulseDelay} onClick={handleListenClick}>
+        {listenLabel}
+      </HomeCta>
+    </>
   );
 }

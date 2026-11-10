@@ -9,7 +9,7 @@ import { type FormFactor, detectFormFactor } from "~/utils/deviceFormFactor";
 
 const INSTALL_COPY: InstallGateCopy = {
   ariaLabel: "Form:at — install the app",
-  label: "install_app",
+  label: "install_the_app",
   prompt:
     "Form:at installs to your home screen — sets saved for offline listening, notifications for new sets, fullscreen with no browser chrome.",
   manual:
@@ -20,7 +20,7 @@ const INSTALL_COPY: InstallGateCopy = {
   cannotInstall: "Form:at installs to your home screen as an app —",
 };
 
-// [ install_app ] — the home page's install CTA in a browser tab, in the slot
+// [ install_the_app ] — the home page's install CTA in a browser tab, in the slot
 // the installed app gives to notify_me (routes/index.tsx). Push subscriptions
 // are app-only, so in a tab the one useful ask is the install.
 //
@@ -85,7 +85,7 @@ function InstallAppButtonView({ promptReady, onTap }: { promptReady: boolean; on
   return (
     <div className={isFirstLoad ? "animate-slow-fade-in" : "animate-fade-in"}>
       <Button variant="secondary" onClick={onTap}>
-        <InstallMobileIcon className="inline-block align-[-0.15em]" /> install_app
+        <InstallMobileIcon className="inline-block align-[-0.15em]" /> install_the_app
       </Button>
     </div>
   );

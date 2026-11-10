@@ -26,6 +26,11 @@ export type Event = {
   runtime: string;
   status: "upcoming" | "past";
   flyer?: string;
+  // The image the home page shows while this night's tickets are on sale:
+  // the flyer's artwork alone on a transparent background, so it sits on the
+  // page's black. Same base-path shape as `flyer`. Without one the home shows
+  // the night's line and button with no image.
+  homeArt?: string;
   // Optional free-text intro, same shape/purpose as MusicSet's `description?`
   // (sets.ts). Shown as the event page's intro paragraph and used as its meta
   // description; without one, $eventId.tsx builds the meta description from
@@ -47,6 +52,7 @@ export const events: Event[] = [
     runtime: "23:00 — 04:00",
     status: "upcoming",
     flyer: "events/004",
+    homeArt: "events/004-home",
     description:
       "sequence 004: our first saturday, our first night at stereo, on renfield lane. dzeko flies in from barcelona for his scottish debut, vinyl only. he closed marcel dettmann's five-hour night at razzmatazz and co-founded matriz in granada. residents julz lever and hubey complete the transmission. techno, electro and dub from 23:00 to 04:00.",
   },
@@ -112,6 +118,26 @@ export function getUpcomingEvents(): Event[] {
 
 export function getPastEvents(): Event[] {
   return events.filter((e) => e.status === "past");
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The night still to come, soonest first: an `upcoming` event whose night
+ * hasn't ended at `now`. A night runs past midnight, so it counts until noon
+ * UTC on the day after its `date`. Reading the date as well as `status` is
+ * what lets a caller stop pointing at a night once it has happened, before
+ * anyone flips its `status` to `past`.
+ */
+export function getNextEvent(now: Date, from: Event[] = events): Event | undefined {
+  return from
+    .filter((e) => e.status === "upcoming" && now.getTime() < nightEnd(e.date))
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+}
+
+/** Noon UTC on the day after an event's `YYYY-MM-DD` date, in ms. */
+function nightEnd(date: string): number {
+  return Date.parse(`${date}T12:00:00Z`) + DAY_MS;
 }
 
 // The one place a set's display city is resolved — every compact-render

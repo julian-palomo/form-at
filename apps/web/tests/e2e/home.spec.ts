@@ -42,10 +42,10 @@ test.describe("home page", () => {
   });
 
   // Regression guard for "Fitting the home page on a short phone" in
-  // global.css: at idle on an iPhone SE-size screen (375×667), install_app
+  // global.css: at idle on an iPhone SE-size screen (375×667), install_the_app
   // must end above the bottom nav, not under it. Phone projects only: the
   // bottom nav is sm:hidden.
-  test("on an iPhone SE screen install_app clears the bottom nav at idle", async ({
+  test("on an iPhone SE screen install_the_app clears the bottom nav at idle", async ({
     page,
   }, testInfo) => {
     test.skip(
@@ -55,34 +55,63 @@ test.describe("home page", () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await gotoAndHydrate(page, "/");
 
-    const install = page.getByRole("button", { name: "[ install_app ]" });
+    const install = page.getByRole("button", { name: "[ install_the_app ]" });
     await expect(install).toBeVisible();
     const bottomNav = page.locator("nav").filter({ visible: true });
     await expect(bottomNav).toHaveCount(1);
 
     const installBox = await install.boundingBox();
     const navBox = await bottomNav.boundingBox();
-    if (!installBox || !navBox) throw new Error("install_app or the bottom nav has no box");
+    if (!installBox || !navBox) throw new Error("install_the_app or the bottom nav has no box");
     expect(installBox.y + installBox.height).toBeLessThanOrEqual(navBox.y);
   });
 
-  test("renders instagram link and bookings modal trigger", async ({ page }) => {
+  test("renders the community and instagram links, and no bookings", async ({ page }) => {
     await gotoAndHydrate(page, "/");
 
     const ig = page.getByRole("link", { name: /instagram/i });
     await expect(ig).toBeVisible();
     await expect(ig).toHaveAttribute("href", /instagram\.com\/form\.at_glasgow/);
 
-    // Bookings is no longer a raw mailto link — it's a button that opens a
-    // modal so users can pick gmail / outlook / mail_app / copy_email
-    // instead of being forced into whatever the default mail client is.
-    const bookingsTrigger = page.getByRole("button", { name: /bookings/i });
-    await expect(bookingsTrigger).toBeVisible();
-    await bookingsTrigger.click();
-    await expect(page.getByText(/format\.gla@gmail\.com/)).toBeVisible();
-    await expect(page.getByRole("link", { name: /mail_app/i })).toHaveAttribute(
-      "href",
-      /^mailto:format\.gla@gmail\.com/,
-    );
+    const community = page.getByRole("link", { name: /community/i });
+    await expect(community).toBeVisible();
+    await expect(community).toHaveAttribute("href", /^https:\/\/chat\.whatsapp\.com\//);
+
+    await expect(page.getByRole("button", { name: /bookings/i })).toHaveCount(0);
+  });
+
+  // The e2e server has no D1 and no Stripe secrets, so no sale is open: the
+  // home page must not sell a night whose tickets can't be bought.
+  test("with sales off the home page doesn't point at the night's tickets", async ({ page }) => {
+    await gotoAndHydrate(page, "/");
+    await expect(
+      page.getByRole("button", { name: /play_latest|resume_signal|pause/ }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: /get_tickets_for/ })).toHaveCount(0);
+  });
+
+  test("a device holding a ticket for the next night gets the way to it", async ({ page }) => {
+    await page.addInitScript(() => {
+      const token = "aaaaaaaa-0000-4000-8000-000000000001.sig";
+      const ticket = {
+        token,
+        eventId: "format-004",
+        tierName: "early",
+        name: null,
+        seq: 0,
+        quantity: 1,
+        storedAt: 1,
+      };
+      localStorage.setItem(
+        "format-player",
+        JSON.stringify({ state: { tickets: { [token]: ticket } }, version: 0 }),
+      );
+    });
+    await gotoAndHydrate(page, "/");
+
+    const mine = page.getByRole("link", { name: /your_ticket_for_004/ });
+    await expect(mine).toBeVisible();
+    await expect(mine).toHaveAttribute("href", "/tickets");
+    await expect(page.getByRole("button", { name: /play_latest/ })).toHaveCount(0);
   });
 });

@@ -65,10 +65,10 @@ export function GrowthTab({ stats }: GrowthTabProps) {
           </div>
           <p className="mt-1 text-xs text-grey/70">
             shown is an install button with the browser's own prompt behind it; instructions_shown
-            is the home page's install_app opening its how-to instead (iOS, no prompt, or another
-            browser). accepted counts installs from either, so conversion (accepted ÷ shown) reads
-            high. install_to_push is an aggregate approximation, not a tracked per-user funnel —
-            install events are anonymous and push_subscriptions shares no key with them.
+            is the home page's install_the_app opening its how-to instead (iOS, no prompt, or
+            another browser). accepted counts installs from either, so conversion (accepted ÷ shown)
+            reads high. install_to_push is an aggregate approximation, not a tracked per-user funnel
+            — install events are anonymous and push_subscriptions shares no key with them.
           </p>
           <div className="mt-3 space-y-3">
             <div>
@@ -108,7 +108,7 @@ export function GrowthTab({ stats }: GrowthTabProps) {
           </div>
           <p className="mt-1 text-xs text-grey/70">
             tab will always read 0 by current product policy — notify_me only renders in the
-            installed app (see PushOptInCta.tsx); a browser tab gets install_app instead.
+            installed app (see PushOptInCta.tsx); a browser tab gets install_the_app instead.
           </p>
           <div className="mt-3">
             <Label className="mb-1 block text-xs text-grey">growth_60d</Label>

@@ -153,7 +153,7 @@ describe("PushOptInCta gating — standalone", () => {
 });
 
 describe("PushOptInCta gating — browser tab", () => {
-  it("never shows in a tab, even with an unspent ask (install_app holds that slot)", async () => {
+  it("never shows in a tab, even with an unspent ask (install_the_app holds that slot)", async () => {
     setGate(tabGate);
     mockPushSupport({ subscribed: false });
     mockNotification("default");

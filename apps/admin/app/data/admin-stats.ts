@@ -24,7 +24,7 @@ import {
 export type InstallFunnel = {
   /** An install CTA on screen with Chrome's native prompt behind it. */
   shown: number;
-  /** The home page's [ install_app ] opened its instructions instead (no
+  /** The home page's [ install_the_app ] opened its instructions instead (no
    *  native prompt: iOS share-menu steps, the manual hint, open-app, or
    *  where to install instead). A separate entry point, not a stage after
    *  `shown`. */
