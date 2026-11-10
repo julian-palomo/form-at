@@ -58,7 +58,11 @@ The Stripe webhook endpoint listens for `checkout.session.completed` and
 `checkout.session.expired`; when it creates an order's tickets it emails the
 buyer one `/tickets/<token>` link per ticket, from
 `Form:at <tickets@formatglasgow.com>` (SPF and DKIM for the domain are set
-in Cloudflare DNS). That page (`routes/tickets/$token.tsx`) verifies the
+in Cloudflare DNS), ending in the collective's signature: the wordmark
+(`public/email/wordmark.png`, read from production whatever deployment
+sends), "Form:at — Glasgow", the site and the Instagram. The sending address
+holds no mailbox, so the email's reply-to is the collective's Gmail address
+(`TICKET_EMAIL_REPLY_TO`). That page (`routes/tickets/$token.tsx`) verifies the
 token, draws the QR (`components/tickets/TicketQr.tsx`, `uqr`, lazy) inside
 the gold ticket frame (`components/tickets/TicketCard.tsx`) and
 stores the ticket in `store/ticketsSlice.ts`; its Open Graph tags name the
