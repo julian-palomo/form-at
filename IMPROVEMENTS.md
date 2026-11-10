@@ -18,6 +18,8 @@ Running list of feature/functional improvements. Tick off as we ship.
   We already persist `nowPlayingId` + `positions`. Surface a top card on `/` that resumes the last set in one tap when those are present.
   Shipped, but not as a separate card: `routes/index.tsx`'s main button is a play/pause toggle for the loaded set — `resume_signal` when it's paused, `pause` while it plays — and with nothing loaded it reads `play_latest` and plays the newest set. Same one-tap-resume outcome, folded into the button rather than a distinct component.
 
+  On the home page's night layout (#15) there is no play button: listening starts from `/sets` while a night's tickets are on sale.
+
 - [x] **#4 — Add to calendar on events**
   `AddToCalendarButton` builds an RFC 5545 `.ics` (TZID=Europe/London) from `event.date / runtime / venue` and triggers a download. Shown on upcoming events only. Util: `apps/web/app/utils/ics.ts`.
 
@@ -68,6 +70,11 @@ Running list of feature/functional improvements. Tick off as we ship.
   - **Several photos per DJ.** Out of scope for v1. The data change: `DJ.photo?: string` becomes `photos?: string[]` (the first is the page's and the OG banner's), and the sheet adds a photo row beside the treatments; `optimize-images` already handles any file name under `images-source/djs/`.
 
 ## Bigger but worth it
+
+- [x] **#15 — Home page points at the next night**
+  While the next night's tickets are on sale the home page is that night: its artwork on the page's black, one line (`sat 5 dec · stereo · 23:00`) and one button, `get_tickets_for_004`, to the event page. A device that holds a ticket gets `your_tickets_for_004` to `/tickets` instead. The rest of the time it is the manifesto and `play_latest`. Under both: `[ community ]` (the WhatsApp community), `[ instagram ]`, `[ install_the_app ]`. The phone's bottom bar reads `tix`. Taps are counted (`home_*_click` in `trackableEvents.ts`).
+  - **Dropped, do not re-propose:** `[ bookings ]` on the home page. Promoters reach the collective through other channels, and no one ever wrote to the address unprompted. Also dropped from the night layout after being tried in renders: the manifesto, the play button, the line-up, and section labels such as `next_transmission`, which took space and attention from the one button.
+  - **Open:** what the home shows for a night that is announced but not on sale yet, or sold out (today: the listening layout), and for a night without `homeArt` (today: the line and the button, no image). Events still turn `past` by hand everywhere except the home page.
 
 - [ ] **#8 — Full PWA (install + share routing + offline + polish)**
   Manifest is already in place. Take Form:at from "web app with a manifest" to a real installable PWA with native-app-quality UX. Four phases.

@@ -1571,8 +1571,11 @@ Chromium's emulation.
 **To settle it (a few minutes, on an iPhone, ideally an SE plus one Face ID
 model):** install the app, open home with a set loaded (mini player shown)
 and with the notify / install slot both showing and spent, and check that
-it doesn't scroll, that `install_app` / `notify_me` sit above the swipe
-dots, and that nothing hides behind the mini player. Waits on the same
+it doesn't scroll, that `install_the_app` / `notify_me` sit above the swipe
+dots, and that nothing hides behind the mini player. The night layout
+(the home page while a night's tickets are on sale) is sized the same way,
+through `--fit-night-art`, and has the same gap: measured in headless
+Chromium at 375×667 and 375×740 only. Waits on the same
 iPhone access as items 12, 23b and 30.
 
 ## 34. The two `.inputValidator()`s are identity casts, not validation

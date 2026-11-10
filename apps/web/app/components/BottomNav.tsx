@@ -27,6 +27,7 @@ export function BottomNav() {
       suppressHydrationWarning
     >
       <NavLinks
+        compact
         className="flex items-center justify-around px-2 py-3"
         itemClassName="flex-1 text-center text-xs text-grey hover:text-white transition-colors py-1"
         activeClassName="text-gold"

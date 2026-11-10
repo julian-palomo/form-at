@@ -82,6 +82,20 @@ describe("SocialLink", () => {
     expect(openSpy).not.toHaveBeenCalled();
   });
 
+  it("calls onTap on a primary click, before navigating, and not on a modifier-click", async () => {
+    mockMatchMedia(false);
+    const onTap = vi.fn();
+    render(
+      <SocialLink href="https://example.com" onTap={onTap}>
+        link
+      </SocialLink>,
+    );
+    fireEvent.click(screen.getByRole("link"), { metaKey: true });
+    expect(onTap).not.toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole("link"));
+    expect(onTap).toHaveBeenCalledTimes(1);
+  });
+
   it("leaves modifier-clicks alone for power users", () => {
     mockMatchMedia(false);
     render(<SocialLink href="https://example.com">link</SocialLink>);

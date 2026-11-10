@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InstallAppButton } from "~/components/InstallAppButton";
 import type { SaveGate } from "~/hooks/useSaveGate";
 
-// The home page's [ install_app ]: who sees it, and what a tap does, per
+// The home page's [ install_the_app ]: who sees it, and what a tap does, per
 // gate. The gate itself (UA → platform → reason) is useSaveGate's and
 // installCapability's to test; here it's an input.
 
@@ -25,7 +25,7 @@ vi.mock("~/utils/deviceFormFactor", () => ({ detectFormFactor: () => formFactorR
 const setGate = (gate: SaveGate) => {
   gateRef.current = gate;
 };
-const button = () => screen.queryByRole("button", { name: "[ install_app ]" });
+const button = () => screen.queryByRole("button", { name: "[ install_the_app ]" });
 
 afterEach(() => {
   formFactorRef.current = "mobile";

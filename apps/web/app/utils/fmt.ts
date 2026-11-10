@@ -54,6 +54,42 @@ export function fmtEventDay(date: string): string {
   return `${weekday}\u00A0${String(d).padStart(2, "0")}.${String(m).padStart(2, "0")}`;
 }
 
+const MONTHS = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+] as const;
+
+// A night in one lowercase line for the home page: `sat 5 dec · stereo · 23:00`.
+// The day is read in UTC like fmtEventDay; the venue is the part of `venue`
+// before its first comma (the place's name, not its address); the time is
+// where `runtime` starts. A part that can't be read is left out.
+export function fmtNightLine(night: { date: string; venue: string; runtime: string }): string {
+  const venue = night.venue.split(",")[0]?.trim() ?? "";
+  const start = night.runtime.match(/^\s*(\d{1,2}:\d{2})/)?.[1] ?? "";
+  return [nightDay(night.date), venue, start]
+    .filter((part) => part !== "")
+    .join(" · ")
+    .toLowerCase();
+}
+
+/** `2026-12-05` as `Sat 5 Dec`; the date unchanged when it isn't one. */
+function nightDay(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const month = m ? MONTHS[m - 1] : undefined;
+  if (!y || !m || !d || !month) return date;
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${month}`;
+}
+
 // MB-or-GB byte sizes for offline-library labels. Decimal units (MB = 10^6)
 // to match what users see in iOS Settings / Chrome storage panel — binary
 // MiB would confuse the comparison. Rounds to whole numbers under 1 GB, one

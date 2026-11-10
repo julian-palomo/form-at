@@ -97,7 +97,15 @@
    fits. On iOS --fit-pb is 111 + ~34 + 24 ≈ 169px, slightly more than
    pb-40. --chrome-bottom is set on <html> from ABOVE_CHROME_BOTTOM
    (styles/layout.ts); the fallback below is only for that style ever
-   missing. */
+   missing.
+
+   --fit-night-art is the most height the night layout's image may take on
+   a phone (components/home/NightHome.tsx), so the night's line, its button
+   and both link rows still end above the chrome: the screen, minus
+   --fit-pb, minus the header's padding and margin, minus 1.5 gaps around
+   the link rows, minus 184px of fixed heights: the wordmark (40), the
+   night's line with its margins (44), the button (56) and the two link
+   rows (20 + 24). */
 :root {
   --fit-h: calc(100svh - var(--mini-player-h, 56px));
   --fit-pb: calc(var(--chrome-bottom, calc(111px + env(safe-area-inset-bottom))) + 24px);
@@ -108,4 +116,13 @@
   --fit-gap-sm: clamp(2px, calc(2px + var(--fit-ramp) * 0.0583), 16px); /* my-4 */
   --fit-text-size: clamp(12px, calc(12px + var(--fit-ramp) * 0.00834), 14px); /* t-body */
   --fit-text-leading: clamp(20px, calc(20px + var(--fit-ramp) * 0.01667), 24px);
+  --fit-night-art: calc(
+    100svh -
+    var(--fit-pb) -
+    var(--fit-header-pt) -
+    var(--fit-header-mb) -
+    var(--fit-gap) *
+    1.5 -
+    184px
+  );
 }

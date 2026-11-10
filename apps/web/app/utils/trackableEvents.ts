@@ -64,7 +64,7 @@ export const TRACKABLE_EVENT_TYPES = [
   // the page drops `ref` from the address bar afterwards. Counts the story's
   // viewers, not its makers, so it sits beside the funnel, not in it.
   "story_link_open",
-  // The home page's [ install_app ] opened its instructions modal: a browser
+  // The home page's [ install_the_app ] opened its instructions modal: a browser
   // tab with no native prompt to fire (iOS share-menu steps, the manual hint,
   // open-app, or where to install instead). A tap that fires Chrome's prompt
   // directly isn't this; that funnel is install_prompt_shown →
@@ -80,6 +80,18 @@ export const TRACKABLE_EVENT_TYPES = [
   "dj_story_open",
   "dj_story_shared",
   "dj_story_downloaded",
+  // Taps on the home page, so what stays on it is decided with numbers.
+  // `home_tickets_click` is the button to the next night's event page while
+  // its tickets are on sale; `home_your_tickets_click` is the same button on
+  // a device that holds a ticket, which opens /tickets instead.
+  // `home_play_click` is every tap on the play / pause toggle, not a play:
+  // plays are counted in `plays`. The other two are the link rows. No id on
+  // any of them, as calendar_add_click.
+  "home_tickets_click",
+  "home_your_tickets_click",
+  "home_play_click",
+  "home_instagram_click",
+  "home_community_click",
 ] as const;
 
 export type TrackableEventType = (typeof TRACKABLE_EVENT_TYPES)[number];

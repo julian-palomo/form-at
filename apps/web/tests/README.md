@@ -43,7 +43,7 @@ tests/
 ├── unit/
 │   ├── store/         # Zustand slices (playerSlice, catalogueSlice, rehydration)
 │   ├── hooks/         # useAudioPlayer*, useFirstLoad, useOfflineDownload…
-│   ├── components/    # BookingsButton, CatalogueSync, TicketQr, Celebration, etc. (shared design-system
+│   ├── components/    # NightHome, CatalogueSync, TicketQr, Celebration, etc. (shared design-system
 │   │                  #   components live in packages/ui and are tested there)
 │   ├── utils/         # fmt, appContext, deeplink, installCapability…
 │   ├── data/          # beacon-queue, sets, setsForRoute (the D1-fallback logic), tickets (real SQLite), ticketEmail (Resend request shape)

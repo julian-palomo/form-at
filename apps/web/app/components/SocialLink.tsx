@@ -9,6 +9,8 @@ interface SocialLinkProps {
    *  iOS is intentionally left alone — Universal Links already handle the
    *  handoff for major platforms (Instagram, SoundCloud, Spotify, etc.). */
   androidPackage?: string;
+  /** Runs on every primary tap, before the navigation: where a caller counts it. */
+  onTap?: () => void;
   children: ReactNode;
 }
 
@@ -28,9 +30,10 @@ interface SocialLinkProps {
  * still gets new-tab and a tablet still gets the handoff in any orientation.
  * Modifier-clicks (cmd/ctrl/shift/middle) are deliberately left alone.
  */
-export function SocialLink({ href, className, androidPackage, children }: SocialLinkProps) {
+export function SocialLink({ href, className, androidPackage, onTap, children }: SocialLinkProps) {
   const onClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    onTap?.();
 
     // Android: rewrite to an intent URL so the native app opens directly.
     if (androidPackage && isAndroid()) {
