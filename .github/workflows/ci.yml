@@ -219,6 +219,11 @@ jobs:
       # stuck attempt so the next one gets a fresh connection instead of
       # grinding on a bad mirror for the whole job; `timeout-minutes` below
       # is the outer bound in case all three attempts are still slow.
+      # `timeout` stops Playwright but not the root-owned `apt-get` it started
+      # through sudo, which keeps the dpkg lock and fails every later attempt
+      # with "Could not get lock /var/lib/dpkg/lock-frontend". Each failed
+      # attempt therefore kills any leftover `apt-get`/`dpkg`, and
+      # `dpkg --configure -a` repairs a package interrupted mid-install.
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 20
@@ -231,7 +236,10 @@ jobs:
               break
             fi
             echo "Attempt $i failed or timed out after 5m (likely a slow apt mirror) — retrying..."
+            sudo pkill -x apt-get || true
+            sudo pkill -x dpkg || true
             sleep 10
+            sudo dpkg --configure -a || true
           done
           $success || exit 1
 
@@ -247,7 +255,10 @@ jobs:
               break
             fi
             echo "Attempt $i failed or timed out after 5m (likely a slow apt mirror) — retrying..."
+            sudo pkill -x apt-get || true
+            sudo pkill -x dpkg || true
             sleep 10
+            sudo dpkg --configure -a || true
           done
           $success || exit 1
 
