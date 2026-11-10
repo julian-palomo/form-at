@@ -1,3 +1,4 @@
+import { signTicketToken } from "@form-at/data/ticketToken";
 import { describe, expect, it } from "vitest";
 import { isStaticAssetPath } from "~/utils/staticAssetPath";
 
@@ -34,6 +35,25 @@ describe("isStaticAssetPath", () => {
       `/tickets/e798fae5-812c-4d87-8480-cb79c9f2f614.${alnumSignature}`,
       `/tickets/e798fae5-812c-4d87-8480-cb79c9f2f614.${mixedSignature}`,
     ]) {
+      expect(isStaticAssetPath(path), path).toBe(false);
+    }
+  });
+
+  it("keeps every real ticket link with the app, whatever its signature", async () => {
+    // 200 signed tokens, the way an order's tickets are signed. Around a
+    // quarter of them have a signature made only of letters and digits, the
+    // ones the old `.<letters and digits>$` test took for a file.
+    const paths = await Promise.all(
+      Array.from({ length: 200 }, (_, i) =>
+        signTicketToken(
+          `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+          "test-signing-secret-of-at-least-32-characters",
+        ),
+      ),
+    ).then((tokens) => tokens.map((t) => `/tickets/${t}`));
+    const alnumOnly = paths.filter((p) => /\.[a-z0-9]+$/i.test(p));
+    expect(alnumOnly.length).toBeGreaterThan(0);
+    for (const path of paths) {
       expect(isStaticAssetPath(path), path).toBe(false);
     }
   });
