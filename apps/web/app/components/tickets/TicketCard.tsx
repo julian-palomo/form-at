@@ -58,15 +58,12 @@ export function TicketCard({ ticket }: { ticket: TicketCardTicket }) {
 
   return (
     <article className="relative flex flex-col items-center gap-6 border-2 border-gold shadow-[0_0_25px_rgba(197,133,56,0.35)] px-5 pt-10 pb-6">
-      {/* The tag sits on the frame's top edge. Only a strip as tall as the
-          border is page-coloured, so it breaks the line behind the text
-          without cutting a dark box out of the glow around it. The strip's
-          offset is the tag's half line-height (20px) minus the border (2px). */}
-      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-2 text-sm text-grey tracking-widest">
-        <span aria-hidden="true" className="absolute inset-x-0 top-2.5 h-0.5 bg-black" />
-        <span className="relative">
-          <BracketLabel>{ticketLabel(ticket)}</BracketLabel>
-        </span>
+      {/* The tag sits on the frame's top edge. Its page-coloured background
+          breaks the line behind it, and a blurred shadow of the same colour
+          fades the frame's glow out around the text, so the tag doesn't cut
+          a hard-edged box out of the glow. */}
+      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-black shadow-[0_0_14px_10px_var(--color-black)] px-2 text-sm text-grey tracking-widest">
+        <BracketLabel>{ticketLabel(ticket)}</BracketLabel>
       </span>
       {/* A sent ticket dims and its QR is covered, so the sender can't show
           it at the door by mistake while the friend holds the same link. The
