@@ -6,10 +6,11 @@ import type { StoredTicket } from "~/store/ticketsSlice";
 import { fmtEventDay } from "~/utils/fmt";
 import { ticketShareTarget } from "~/utils/shareTarget";
 
-// One ticket as the buyer shows it at the door: a plain gold frame (no glow:
-// a glow bleeds behind the tag's cut-out) with the `[ ticket 1 of 2 ]` tag
-// on its top edge, the QR on a white square inside, then the facts. The frame is the shape of a ticket everywhere one is
-// drawn; the celebration on the success page is separate (Celebration.tsx).
+// One ticket as the buyer shows it at the door: a gold frame with a soft
+// glow, the `[ ticket 1 of 2 ]` tag on its top edge, the QR on a white
+// square inside, then the facts. The frame is the shape of a ticket
+// everywhere one is drawn; the celebration on the success page is separate
+// (Celebration.tsx).
 // Used by `/tickets/$token` (the emailed link), `/tickets`
 // (the device's stored tickets) and the page Stripe returns to. Everything
 // here comes from the stored ticket and the static event list, so it renders
@@ -56,11 +57,16 @@ export function TicketCard({ ticket }: { ticket: TicketCardTicket }) {
   ];
 
   return (
-    <article className="relative flex flex-col items-center gap-6 border-2 border-gold px-5 pt-10 pb-6">
-      {/* The tag sits on the frame's top edge; its page-coloured background
-          breaks the line behind it. */}
-      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-black px-2 text-sm text-grey tracking-widest">
-        <BracketLabel>{ticketLabel(ticket)}</BracketLabel>
+    <article className="relative flex flex-col items-center gap-6 border-2 border-gold shadow-[0_0_25px_rgba(197,133,56,0.35)] px-5 pt-10 pb-6">
+      {/* The tag sits on the frame's top edge. Only a strip as tall as the
+          border is page-coloured, so it breaks the line behind the text
+          without cutting a dark box out of the glow around it. The strip's
+          offset is the tag's half line-height (20px) minus the border (2px). */}
+      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-2 text-sm text-grey tracking-widest">
+        <span aria-hidden="true" className="absolute inset-x-0 top-2.5 h-0.5 bg-black" />
+        <span className="relative">
+          <BracketLabel>{ticketLabel(ticket)}</BracketLabel>
+        </span>
       </span>
       {/* A sent ticket dims and its QR is covered, so the sender can't show
           it at the door by mistake while the friend holds the same link. The
