@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   TICKET_EMAIL_FROM,
+  TICKET_EMAIL_REPLY_TO,
   type TicketEmail,
   sendTicketEmail,
   ticketEmailContent,
@@ -35,6 +36,26 @@ describe("ticketEmailContent", () => {
     expect(html).toContain("ticket 2 of 2");
   });
 
+  it("carries the shared header and footer: wordmark, site and instagram", () => {
+    const { text, html } = ticketEmailContent(EMAIL);
+    expect(html).toContain('src="https://formatglasgow.com/email/wordmark.png"');
+    expect(html).toContain('alt="Form:at"');
+    expect(html).toContain('href="https://formatglasgow.com"');
+    expect(html).toContain('href="https://www.instagram.com/form.at_glasgow/"');
+    expect(html).toContain("reply to this email");
+    expect(text).toContain("Form:at — Glasgow");
+    expect(text).toContain("https://formatglasgow.com");
+    expect(text).toContain("@form.at_glasgow");
+  });
+
+  it("trims the name Stripe gave, and greets plainly without one", () => {
+    expect(ticketEmailContent({ ...EMAIL, name: "Julian number one " }).text).toContain(
+      "hi Julian number one,",
+    );
+    expect(ticketEmailContent({ ...EMAIL, name: "  " }).text).toContain("hi,\n");
+    expect(ticketEmailContent({ ...EMAIL, name: null }).text).toContain("hi,\n");
+  });
+
   it("speaks of one ticket for an order of one, and escapes HTML in the name", () => {
     const one = ticketEmailContent({
       ...EMAIL,
@@ -62,6 +83,7 @@ describe("sendTicketEmail", () => {
     expect(headers.get("Idempotency-Key")).toBe("ticket-order-1");
     expect(JSON.parse(String(init.body))).toMatchObject({
       from: TICKET_EMAIL_FROM,
+      reply_to: TICKET_EMAIL_REPLY_TO,
       to: ["buyer@example.com"],
       subject: "your tickets for Form:at 004",
     });

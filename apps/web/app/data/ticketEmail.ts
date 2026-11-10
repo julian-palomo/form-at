@@ -13,6 +13,23 @@ const RESEND_API = "https://api.resend.com/emails";
 
 /** The verified sending domain is formatglasgow.com (SPF and DKIM in Cloudflare DNS). */
 export const TICKET_EMAIL_FROM = "Form:at <tickets@formatglasgow.com>";
+/**
+ * Where a buyer's reply lands. The sending address only sends (Resend holds
+ * no mailbox for it), so without this a reply bounces.
+ */
+export const TICKET_EMAIL_REPLY_TO = "format.gla@gmail.com";
+
+// The email ends in the collective's signature, the same block its Gmail
+// signature shows (the wordmark on black, "Form:at — Glasgow", the site and
+// Instagram), minus the person's name and phone: this is an automated send.
+// The wordmark is a crop of `public/wordmark.png` without its square margins,
+// served from production whatever origin sends the email, since the image
+// must be reachable by the reader's mail client and a preview deployment is
+// not.
+const WORDMARK_URL = "https://formatglasgow.com/email/wordmark.png";
+const SITE_URL = "https://formatglasgow.com";
+const INSTAGRAM_URL = "https://www.instagram.com/form.at_glasgow/";
+const INSTAGRAM_HANDLE = "@form.at_glasgow";
 
 type TicketEmailLink = {
   url: string;
@@ -55,7 +72,9 @@ export function ticketEmailContent(email: TicketEmail): {
 } {
   const many = email.tickets.length > 1;
   const subject = `your ${many ? "tickets" : "ticket"} for ${email.eventTitle}`;
-  const greeting = email.name ? `hi ${email.name},` : "hi,";
+  // The name is what the buyer typed at Stripe, spaces included.
+  const name = email.name?.trim();
+  const greeting = name ? `hi ${name},` : "hi,";
   const intro = many
     ? `here are your ${email.tickets.length} tickets for ${email.eventTitle}. each link is one ticket: keep one and send the others to your friends.`
     : `here is your ticket for ${email.eventTitle}.`;
@@ -64,6 +83,8 @@ export function ticketEmailContent(email: TicketEmail): {
     "open a link on your phone and the ticket stays in the app, with no signal needed at the door. show the qr once; it's scanned once.";
   const label = (t: TicketEmailLink) =>
     many ? `ticket ${t.seq + 1} of ${email.tickets.length}` : "your ticket";
+
+  const replyLine = "questions? reply to this email.";
 
   const text = [
     greeting,
@@ -75,11 +96,18 @@ export function ticketEmailContent(email: TicketEmail): {
     "",
     outro,
     "",
-    "form:at",
+    replyLine,
+    "",
+    "Form:at — Glasgow",
+    SITE_URL,
+    `${INSTAGRAM_HANDLE} · ${INSTAGRAM_URL}`,
   ].join("\n");
 
+  const mono = "font-family:ui-monospace,Menlo,Consolas,monospace";
+  const signatureLink = "color:#1155cc;text-decoration:underline";
   const html = [
-    '<div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;line-height:1.6;color:#111;max-width:560px">',
+    `<div style="${mono};color:#111;max-width:560px">`,
+    '<div style="font-size:15px;line-height:1.6">',
     `<p>${escapeHtml(greeting)}</p>`,
     `<p>${escapeHtml(intro)}<br>${escapeHtml(facts)}</p>`,
     ...email.tickets.map(
@@ -87,7 +115,16 @@ export function ticketEmailContent(email: TicketEmail): {
         `<p><a href="${escapeHtml(t.url)}" style="color:#111;font-weight:bold">&rsaquo; ${escapeHtml(label(t))}</a></p>`,
     ),
     `<p>${escapeHtml(outro)}</p>`,
-    "<p>form:at</p>",
+    `<p>${escapeHtml(replyLine)}</p>`,
+    "</div>",
+    // The signature. Width and height are set so the layout holds while
+    // images are blocked.
+    '<div style="margin-top:32px;font-size:14px;line-height:1.7">',
+    `<img src="${WORDMARK_URL}" width="320" height="104" alt="Form:at" style="display:block;width:320px;height:104px;border:0;margin-bottom:12px">`,
+    "<b>Form:at</b> &mdash; Glasgow<br>",
+    `<a href="${SITE_URL}" style="${signatureLink}">formatglasgow.com</a><br>`,
+    `<a href="${INSTAGRAM_URL}" style="${signatureLink}">${INSTAGRAM_HANDLE}</a>`,
+    "</div>",
     "</div>",
   ].join("");
 
@@ -114,6 +151,7 @@ export async function sendTicketEmail(
     },
     body: JSON.stringify({
       from: TICKET_EMAIL_FROM,
+      reply_to: TICKET_EMAIL_REPLY_TO,
       to: [email.to],
       subject: content.subject,
       text: content.text,
