@@ -1,14 +1,13 @@
 import { cn } from "@form-at/ui";
 import type { ReactNode } from "react";
 
-// A tap target for the door: a full block with a border or a fill, sized for
+// A tap target for the door: a full bordered block, sized for
 // a thumb in the dark. The bracket Button reads as text at arm's length and
 // its tap area is only as wide as its label; this one fills its grid cell.
 
-type Tone = "solid" | "outline" | "danger";
+type Tone = "outline" | "danger";
 
 const toneClass: Record<Tone, string> = {
-  solid: "bg-gold text-black border-2 border-gold",
   outline: "border-2 border-gold text-white",
   danger: "border-2 border-red-400 text-red-400",
 };

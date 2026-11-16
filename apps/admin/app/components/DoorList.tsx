@@ -11,9 +11,10 @@ import { DoorSales } from "./DoorSales";
 // pressed, never with the list itself.
 const DoorScanner = lazy(() => import("./DoorScanner"));
 
-// The door, in the order it is used: the QR scanner, the door sales counter,
-// a search over name and email with every paid ticket (an order of 3 is three
-// rows, "1 of 3"…) and one tap to let a ticket in, then refresh and the CSV. Built for a phone in a dark basement: large tap targets, large
+// The door: the door sales counter, a search over name and email with every
+// paid ticket (an order of 3 is three rows, "1 of 3"…) and one tap to let a
+// ticket in, then refresh and the CSV. The `scan` button is fixed to the
+// bottom edge and opens the QR scanner over the page. Built for a phone in a dark basement: large tap targets, large
 // text, nothing to scroll sideways. The list is loaded once on the server;
 // search runs here over that list, so it keeps working between refreshes.
 
@@ -114,23 +115,7 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <BlockButton
-          tone={scanning ? "outline" : "solid"}
-          onClick={() => setScanning((open) => !open)}
-          aria-expanded={scanning}
-          className="min-h-16 text-2xl"
-        >
-          {scanning ? "close scanner" : "scan"}
-        </BlockButton>
-        {scanning && (
-          <Suspense fallback={<p className="t-body text-grey">loading the scanner…</p>}>
-            <DoorScanner onCheckIn={handleScan} />
-          </Suspense>
-        )}
-      </div>
-
+    <div className="space-y-5 pb-24">
       <DoorSales door={door} capacity={capacity} onlinePaid={paid} onlineIn={checkedIn} />
 
       <dl className="grid grid-cols-2 gap-2 border-t border-grey/10 pt-5 text-center">
@@ -206,6 +191,31 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
         >
           <BracketLabel>download csv</BracketLabel>
         </a>
+      </div>
+
+      {/* The scanner covers the page while it is open, and the button that
+          opens and closes it stays fixed to the bottom edge, under the
+          thumb. The page's bottom padding keeps the last row clear of it. */}
+      {scanning && (
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-black p-4 pb-28">
+          <div className="mx-auto max-w-2xl">
+            <Suspense fallback={<p className="t-body text-grey">loading the scanner…</p>}>
+              <DoorScanner onCheckIn={handleScan} />
+            </Suspense>
+          </div>
+        </div>
+      )}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-grey/30 bg-black px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto max-w-2xl">
+          <BlockButton
+            tone="outline"
+            onClick={() => setScanning((open) => !open)}
+            aria-expanded={scanning}
+            className="min-h-16 text-2xl"
+          >
+            {scanning ? "close scanner" : "scan"}
+          </BlockButton>
+        </div>
       </div>
     </div>
   );
