@@ -16,6 +16,8 @@ export function AdminNav() {
   const { location } = useRouterState();
 
   return (
+    // A phone shows the door link only: the door is the one section used
+    // from a phone, and the other sections stay reachable by URL.
     // flex-wrap plus tighter mobile gap/padding: the wordmark and five
     // labels don't fit 375px on one line, and without wrapping they pushed
     // the whole page 10px wider than the viewport (horizontal scroll on every
@@ -31,7 +33,11 @@ export function AdminNav() {
           <Link
             key={to}
             to={to}
-            className={cn("font-display text-lg lowercase", isActive && "text-white")}
+            className={cn(
+              "font-display text-lg lowercase",
+              isActive && "text-white",
+              to !== "/door" && "hidden sm:inline",
+            )}
           >
             {isActive ? <BracketLabel>{label}</BracketLabel> : label}
           </Link>
