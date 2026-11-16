@@ -4,6 +4,7 @@ import type { DoorMethod, DoorSummary } from "~/data/door-sales";
 import type { DoorPriceResponseBody } from "~/routes/api/tickets/door-price";
 import type { DoorSaleResponseBody, DoorUndoResponseBody } from "~/routes/api/tickets/door-sales";
 import { fmtClock, fmtPounds } from "~/utils/fmt";
+import { BlockButton } from "./BlockButton";
 
 // The door counter: how many are inside against the venue's capacity, the
 // cash and card sold at the door, and the cash that should be in the box.
@@ -135,8 +136,6 @@ export function DoorSales({ door, capacity, onlinePaid, onlineIn }: DoorSalesPro
     }
   };
 
-  const tapClass = cn("min-h-14 text-lg", busy && "opacity-40 cursor-not-allowed");
-
   return (
     <section aria-label="door sales" className="space-y-4">
       <div className="grid grid-cols-2 gap-2 text-center">
@@ -172,26 +171,16 @@ export function DoorSales({ door, capacity, onlinePaid, onlineIn }: DoorSalesPro
         ))}
       </dl>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <Button
-          variant="secondary"
-          onClick={() => handleSale("cash")}
-          disabled={busy}
-          className={tapClass}
-        >
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+        <BlockButton tone="outline" onClick={() => handleSale("cash")} disabled={busy}>
           +1 cash
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => handleSale("card")}
-          disabled={busy}
-          className={tapClass}
-        >
+        </BlockButton>
+        <BlockButton tone="outline" onClick={() => handleSale("card")} disabled={busy}>
           +1 card
-        </Button>
-        <Button variant="fail" onClick={handleUndo} disabled={busy} className={tapClass}>
+        </BlockButton>
+        <BlockButton tone="danger" onClick={handleUndo} disabled={busy} className="px-5">
           −1
-        </Button>
+        </BlockButton>
       </div>
 
       {notice && (

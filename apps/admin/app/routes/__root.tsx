@@ -5,7 +5,11 @@ import "~/styles/global.css";
 
 export const Route = createRootRoute({
   head: () => ({
-    meta: [{ title: "Form:at Admin" }, { name: "robots", content: "noindex" }],
+    meta: [
+      { title: "Form:at Admin" },
+      { name: "robots", content: "noindex" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+    ],
   }),
   component: Root,
 });

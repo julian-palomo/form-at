@@ -4,15 +4,17 @@ import { type ReactNode, Suspense, lazy, useState } from "react";
 import type { DoorSummary } from "~/data/door-sales";
 import type { CheckInResponseBody } from "~/routes/api/tickets/check-in";
 import { fmtClock } from "~/utils/fmt";
+import { BlockButton } from "./BlockButton";
 import { DoorSales } from "./DoorSales";
 
 // A genuine `import()`, so the QR decoder downloads only when `scan` is
 // pressed, never with the list itself.
 const DoorScanner = lazy(() => import("./DoorScanner"));
 
-// The door: the door sales counter, every paid ticket (an order of 3 is three
-// rows, "1 of 3"…), a QR scanner, a search over name and email, and one tap to
-// let a ticket in. Built for a phone in a dark basement: large tap targets, large
+// The door: the door sales counter, a search over name and email with every
+// paid ticket (an order of 3 is three rows, "1 of 3"…) and one tap to let a
+// ticket in, then refresh and the CSV. The `scan` button is fixed to the
+// bottom edge and opens the QR scanner over the page. Built for a phone in a dark basement: large tap targets, large
 // text, nothing to scroll sideways. The list is loaded once on the server;
 // search runs here over that list, so it keeps working between refreshes.
 
@@ -113,7 +115,7 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-24">
       <DoorSales door={door} capacity={capacity} onlinePaid={paid} onlineIn={checkedIn} />
 
       <dl className="grid grid-cols-2 gap-2 border-t border-grey/10 pt-5 text-center">
@@ -129,40 +131,6 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
           </div>
         ))}
       </dl>
-
-      <div className="space-y-3">
-        <Button
-          variant="secondary"
-          onClick={() => setScanning((s) => !s)}
-          aria-expanded={scanning}
-          className="min-h-12 text-base"
-        >
-          {scanning ? "close scanner" : "scan"}
-        </Button>
-        {scanning && (
-          <Suspense fallback={<p className="t-body text-grey">loading the scanner…</p>}>
-            <DoorScanner onCheckIn={handleScan} />
-          </Suspense>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <Button
-          variant="secondary"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className={cn("min-h-12 text-base", refreshing && "opacity-40 cursor-not-allowed")}
-        >
-          {refreshing ? "refreshing" : "refresh"}
-        </Button>
-        <a
-          href="/api/tickets/door-csv"
-          download
-          className="flex min-h-12 items-center text-base text-grey hover:text-white tracking-widest"
-        >
-          <BracketLabel>download csv</BracketLabel>
-        </a>
-      </div>
 
       {orders == null ? (
         <p className="t-body sm:t-body-md text-grey">
@@ -206,6 +174,49 @@ export function DoorList({ orders, door, capacity, onRefresh }: DoorListProps) {
           )}
         </>
       )}
+
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-grey/10 pt-4">
+        <Button
+          variant="secondary"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className={cn("min-h-12 text-base", refreshing && "opacity-40 cursor-not-allowed")}
+        >
+          {refreshing ? "refreshing" : "refresh"}
+        </Button>
+        <a
+          href="/api/tickets/door-csv"
+          download
+          className="flex min-h-12 items-center text-base text-grey hover:text-white tracking-widest"
+        >
+          <BracketLabel>download csv</BracketLabel>
+        </a>
+      </div>
+
+      {/* The scanner covers the page while it is open, and the button that
+          opens and closes it stays fixed to the bottom edge, under the
+          thumb. The page's bottom padding keeps the last row clear of it. */}
+      {scanning && (
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-black p-4 pb-28">
+          <div className="mx-auto max-w-2xl">
+            <Suspense fallback={<p className="t-body text-grey">loading the scanner…</p>}>
+              <DoorScanner onCheckIn={handleScan} />
+            </Suspense>
+          </div>
+        </div>
+      )}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-grey/30 bg-black px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto max-w-2xl">
+          <BlockButton
+            tone="outline"
+            onClick={() => setScanning((open) => !open)}
+            aria-expanded={scanning}
+            className="min-h-16 text-2xl"
+          >
+            {scanning ? "close scanner" : "scan"}
+          </BlockButton>
+        </div>
+      </div>
     </div>
   );
 }
@@ -239,14 +250,14 @@ function DoorRow({
     status = <p className="text-xs text-grey">no ticket yet</p>;
   } else {
     status = (
-      <Button
-        variant="secondary"
+      <BlockButton
+        tone="outline"
         onClick={() => onCheckIn(ticketId)}
         disabled={busy}
-        className={cn("min-h-12 text-base", busy && "opacity-40 cursor-not-allowed")}
+        className="min-h-12 text-base"
       >
         {busy ? "checking" : "check in"}
-      </Button>
+      </BlockButton>
     );
   }
 
